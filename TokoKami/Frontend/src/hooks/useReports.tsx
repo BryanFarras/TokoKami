@@ -1,108 +1,100 @@
-import { useState, useEffect, useContext } from 'react';
-import { ProductContext } from '../context/ProductContext';
-import { InventoryContext } from '../context/InventoryContext';
-import { TransactionContext, TransactionItem } from '../context/TransactionContext';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 
-export const useReports = (dateRange: 'week' | 'month' | 'year') => {
-  const [salesData, setSalesData] = useState<{ date: string; sales: number }[]>([]);
-  const [topProducts, setTopProducts] = useState<{ name: string; value: number }[]>([]);
-  const [summary, setSummary] = useState({
-    totalSales: 0,
-    totalOrders: 0,
-    averageOrderValue: 0,
-  });
-  const [inventory, setInventory] = useState({
-    stockLevels: [],
-    totalValue: 0,
-    lowStockItems: 0,
-  });
-  const [financials, setFinancials] = useState({
-    revenue: 0,
-    expenses: 0,
-    profit: 0,
-    recentTransactions: [] as { date: string; total: number; type?: string }[],
-  });
-  const { transactions } = useContext(TransactionContext as unknown as React.Context<{ transactions: any[] }>);
-  const { products } = useContext(ProductContext) || { products: [] };
-  const inventoryItems = useContext(InventoryContext)?.inventoryItems || [];
+interface SalesTrendItem { date: string; sales: number; }
+interface TopProductItem { name: string; value: number; }
+interface ReportSummary { totalSales: number; totalOrders: number; averageOrderValue: number; }
+interface StockLevelItem { name: string; stock: number; isLow: boolean; }
+interface ReportInventory { stockLevels: StockLevelItem[]; totalValue: number; lowStockItems: number; }
+interface TransactionItem { id: number; date: string; total: number; type: "sale" | "expense" | "return"; }
+interface ReportFinancials {
+    revenue: number;
+    expenses: number;
+    profit: number;
+    recentTransactions: TransactionItem[];
+}
+
+interface ReportData {
+  salesData: SalesTrendItem[];
+  topProducts: TopProductItem[];
+  summary: ReportSummary;
+  inventory: ReportInventory;
+  financials: ReportFinancials;
+  isLoading: boolean;
+  isError: boolean;
+}
+
+const defaultData: ReportData = {
+  salesData: [],
+  topProducts: [],
+  summary: { totalSales: 0, totalOrders: 0, averageOrderValue: 0 },
+  inventory: { stockLevels: [], totalValue: 0, lowStockItems: 0 },
+  financials: { revenue: 0, expenses: 0, profit: 0, recentTransactions: [] },
+  isLoading: true,
+  isError: false,
+};
+
+const API_BASE_URL = 'http://localhost:5000/api'; 
+type DateRange = 'week' | 'month' | 'year';
+
+export const useReports = (dateRange: DateRange): ReportData => {
+  // Ganti semua useState lama dengan satu state utama
+  const [data, setData] = useState<ReportData>(defaultData); 
 
   useEffect(() => {
-    if (transactions && products && inventoryItems) {
-      // Calculate sales data
-      const salesByDate = transactions.reduce((acc, transaction) => {
-        const date = new Date(transaction.date);
-        const key = date.toISOString().split('T')[0];
-        acc[key] = (acc[key] || 0) + transaction.total;
-        return acc;
-      }, {});
+    const fetchAllReports = async () => {
+      setData({ ...defaultData, isLoading: true });
 
-      setSalesData(Object.entries(salesByDate).map(([date, sales]) => ({
-        date,
-        sales: sales as number,
-      })));
-
-      // Calculate top products
-      const productSales: { [key: string]: number } = {};
-      transactions.forEach(transaction => {
-        transaction.items.forEach((item: { productId: string | number; quantity: number; }) => {
-          productSales[item.productId] = (productSales[item.productId] || 0) + item.quantity;
+      try {
+        // --- PANGGILAN API 1: RINGKASAN PENJUALAN ---
+        // Ini menggunakan endpoint /api/reports/summary yang sudah kita buat di backend
+        const summaryRes = await axios.get(`${API_BASE_URL}/reports/summary`, {
+            params: { range: dateRange }
         });
-      });
+        const summaryApiData = summaryRes.data;
+        
+        const totalSales = parseFloat(summaryApiData.total_sales) || 0;
+        const totalOrders = summaryApiData.total_transactions || 0;
+        const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+        
+        // --- PANGGILAN API 2: DATA DETAIL (Mockup Sisa) ---
+        // Karena endpoint detail (sales trend, top products, dll.) belum dibuat, 
+        // kita akan menggunakan data mockup AMAN di sini yang bergantung pada totalSales.
+        
+        const mockInventory: ReportInventory = {
+            stockLevels: [{ name: "Kopi Susu", stock: 80, isLow: false }],
+            totalValue: 5000000,
+            lowStockItems: 1,
+        };
+        const mockFinancials: ReportFinancials = {
+            revenue: totalSales,
+            expenses: totalSales * 0.4, 
+            profit: totalSales * 0.6,
+            recentTransactions: [
+                { id: 101, date: new Date().toISOString(), total: 150000, type: 'sale' },
+            ]
+        };
+        
+        // --- UPDATE STATE ---
+        setData({
+            isLoading: false,
+            isError: false,
+            salesData: [{ date: "Hari Ini", sales: totalSales }], // Data trend sederhana
+            topProducts: [{ name: "Produk Teratas", value: 10 }],
+            inventory: mockInventory,
+            summary: { totalSales, totalOrders, averageOrderValue },
+            financials: mockFinancials,
+        });
 
-      const topProductsList = Object.entries(productSales)
-        .map(([productId, quantity]) => ({
-          name: products.find(p => p.id === productId)?.name || 'Unknown',
-          value: quantity,
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 4);
+      } catch (err) {
+        console.error("Gagal mengambil data laporan dari API:", err);
+        // Set error state jika gagal
+        setData({ ...defaultData, isLoading: false, isError: true });
+      }
+    };
 
-      setTopProducts(topProductsList);
+    fetchAllReports();
+  }, [dateRange]);
 
-      // Calculate summary
-      const totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
-      setSummary({
-        totalSales,
-        totalOrders: transactions.length,
-        averageOrderValue: totalSales / transactions.length,
-      });
-
-      // Calculate inventory stats
-      const lowStockThreshold = 10; // Adjust as needed
-      const stockLevels = inventoryItems.map((item: { name: any; quantity: number; }) => ({
-        name: item.name,
-        stock: item.quantity,
-        isLow: item.quantity < lowStockThreshold,
-      }));
-
-      setInventory({
-        stockLevels,
-        totalValue: inventoryItems.reduce((sum: number, item: { quantity: number; cost: number; }) => sum + (item.quantity * item.cost), 0),
-        lowStockItems: stockLevels.filter((item: { isLow: any; }) => item.isLow).length,
-      });
-
-      // Calculate financials
-      const revenue = totalSales;
-      const expenses = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.total, 0);
-
-      setFinancials({
-        revenue,
-        expenses,
-        profit: revenue - expenses,
-        recentTransactions: transactions
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-          .slice(0, 3),
-      });
-    }
-  }, [transactions, products, inventoryItems, dateRange]);
-
-  return {
-    salesData,
-    topProducts,
-    summary,
-    inventory,
-    financials,
-  };
+  return data;
 };

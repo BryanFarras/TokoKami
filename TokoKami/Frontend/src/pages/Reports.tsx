@@ -1,42 +1,78 @@
-import React, { useState } from 'react';
-import { Tab } from '@headlessui/react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { format } from 'date-fns';
-import { useReports } from '../hooks/useReports';
+import { useState } from "react";
+import { Tab } from "@headlessui/react";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer,
+} from "recharts";
+import { motion } from "framer-motion";
+import { format } from "date-fns";
+// Pastikan useReports diimpor dengan benar dari path yang tepat
+import { useReports } from "../hooks/useReports"; 
+import { ArrowTrendingUpIcon, ExclamationCircleIcon } from "@heroicons/react/24/outline";
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const COLORS = ["#4F46E5", "#10B981", "#F59E0B", "#EF4444"];
 
 const Reports = () => {
-  const [dateRange, setDateRange] = useState('month');
-  const { recentTransactions, salesData, topProducts, summary, inventory, financials }: {
-    recentTransactions: { id: number; date: string; total: number; type: 'expense' | 'income' }[]
-    salesData: { date: string; sales: number }[];
-    topProducts: { name: string; value: number }[];
-    summary: { totalSales: number; totalOrders: number; averageOrderValue: number };
-    inventory: { stockLevels: { name: string; stock: number; isLow: boolean }[]; totalValue: number; lowStockItems: number };
-    financials: { 
-      revenue: number; 
-      expenses: number; 
-      profit: number; 
-      recentTransactions: { id: number; date: string; type: 'expense' | 'income'; total: number }[] 
-    };
-  } = useReports(dateRange as 'week' | 'month' | 'year');
+  const [dateRange, setDateRange] = useState("month");
+  
+  // Destructuring AMAN dengan nilai fallback default dari hook
+  const { 
+      salesData, 
+      topProducts, 
+      summary, 
+      inventory, 
+      financials, 
+      isLoading,
+      isError
+  } = useReports(dateRange as "week" | "month" | "year");
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
     }).format(value);
-  };
+
+  // --- LOADING DAN ERROR SCREEN ---
+  if (isLoading) {
+    return (
+        <div className="p-6 min-h-screen flex items-center justify-center">
+            <p className="text-xl font-medium text-indigo-600">
+                Loading Reports Data...
+            </p>
+        </div>
+    );
+  }
+  
+  if (isError) {
+    return (
+        <div className="p-6 min-h-screen flex items-center justify-center bg-red-50">
+            <div className="text-center p-8 border border-red-300 rounded-xl bg-white shadow-lg">
+                <ExclamationCircleIcon className="w-10 h-10 text-red-500 mx-auto" />
+                <h2 className="text-xl font-semibold text-gray-800 mt-2">Error Loading Data</h2>
+                <p className="text-gray-600 mt-1">Gagal terhubung ke Server Backend (port 5000) atau terjadi kesalahan query database.</p>
+                <p className="text-sm text-red-400 mt-2">Pastikan server backend Anda berjalan dengan perintah 'npm start'.</p>
+            </div>
+        </div>
+    );
+  }
+  // --- END LOADING DAN ERROR SCREEN ---
+
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-800">Reports</h1>
-        <select 
-          className="bg-white border border-gray-300 rounded-md px-3 py-2"
+    <div className="p-6 min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-semibold text-gray-800 flex items-center gap-2">
+            <ArrowTrendingUpIcon className="w-7 h-7 text-indigo-600" />
+            Reports Dashboard
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Monitor real-time performance and insights
+          </p>
+        </div>
+        <select
+          className="bg-white border border-gray-200 shadow-sm rounded-lg px-4 py-2 text-gray-700 focus:ring-2 focus:ring-indigo-500 transition-all"
           value={dateRange}
           onChange={(e) => setDateRange(e.target.value)}
         >
@@ -46,180 +82,281 @@ const Reports = () => {
         </select>
       </div>
 
+      {/* Tabs */}
       <Tab.Group>
-        <Tab.List className="flex space-x-1 rounded-xl bg-blue-900/20 p-1 mb-6">
-          <Tab className={({ selected }) =>
-            `w-full rounded-lg py-2.5 text-sm font-medium leading-5
-             ${selected 
-               ? 'bg-white shadow text-blue-700' 
-               : 'text-gray-600 hover:bg-white/[0.12] hover:text-blue-600'
-             }`
-          }>
-            Sales Reports
-          </Tab>
-          <Tab className={({ selected }) =>
-            `w-full rounded-lg py-2.5 text-sm font-medium leading-5
-             ${selected 
-               ? 'bg-white shadow text-blue-700' 
-               : 'text-gray-600 hover:bg-white/[0.12] hover:text-blue-600'
-             }`
-          }>
-            Inventory Reports
-          </Tab>
-          <Tab className={({ selected }) =>
-            `w-full rounded-lg py-2.5 text-sm font-medium leading-5
-             ${selected 
-               ? 'bg-white shadow text-blue-700' 
-               : 'text-gray-600 hover:bg-white/[0.12] hover:text-blue-600'
-             }`
-          }>
-            Financial Reports
-          </Tab>
+        <Tab.List className="flex gap-2 mb-6 bg-gray-100 rounded-xl p-1">
+          {["Sales", "Inventory", "Financial"].map((tab, idx) => (
+            <Tab
+              key={idx}
+              className={({ selected }) =>
+                `w-full py-2.5 text-sm font-medium rounded-lg transition-all ${
+                  selected
+                    ? "bg-indigo-600 text-white shadow"
+                    : "text-gray-600 hover:bg-white hover:text-indigo-600"
+                }`
+              }
+            >
+              {tab} Reports
+            </Tab>
+          ))}
         </Tab.List>
 
         <Tab.Panels>
+          {/* Sales Reports */}
           <Tab.Panel>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-4">Sales Trend</h3>
-                <AreaChart width={500} height={300} data={salesData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                  <Area type="monotone" dataKey="sales" stroke="#8884d8" fill="#8884d8" />
-                </AreaChart>
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Sales Trend
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  {/* Chart memerlukan data, dan SalesData dipastikan array kosong jika error */}
+                  <AreaChart data={salesData}>
+                    <defs>
+                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366F1" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                    <Area
+                      type="monotone"
+                      dataKey="sales"
+                      stroke="#6366F1"
+                      fill="url(#colorSales)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </motion.div>
 
-              <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-4">Top Products</h3>
-                <PieChart width={500} height={300}>
-                  <Pie
-                    data={topProducts}
-                    cx={250}
-                    cy={150}
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}`}
-                  >
-                    {topProducts.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </div>
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Top Products
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={topProducts}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      label={({ name, value }) => `${name} (${value})`}
+                    >
+                      {topProducts.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </motion.div>
 
-              <div className="bg-white p-4 rounded-lg shadow md:col-span-2">
-                <h3 className="text-lg font-semibold mb-4">Sales Summary</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Total Sales</p>
-                    <p className="text-2xl font-bold text-blue-600">{formatCurrency(summary.totalSales)}</p>
-                  </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Total Orders</p>
-                    <p className="text-2xl font-bold text-green-600">{summary.totalOrders}</p>
-                  </div>
-                  <div className="p-4 bg-purple-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Average Order Value</p>
-                    <p className="text-2xl font-bold text-purple-600">{formatCurrency(summary.averageOrderValue)}</p>
-                  </div>
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Summary
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {[
+                    {
+                      title: "Total Sales",
+                      value: formatCurrency(summary.totalSales),
+                      color: "bg-indigo-50 text-indigo-600",
+                    },
+                    {
+                      title: "Total Orders",
+                      value: summary.totalOrders,
+                      color: "bg-green-50 text-green-600",
+                    },
+                    {
+                      title: "Avg Order Value",
+                      value: formatCurrency(summary.averageOrderValue),
+                      color: "bg-purple-50 text-purple-600",
+                    },
+                  ].map((s, i) => (
+                    <div
+                      key={i}
+                      className={`p-5 rounded-xl ${s.color} text-center font-semibold shadow-inner`}
+                    >
+                      <p className="text-sm text-gray-600">{s.title}</p>
+                      <p className="text-2xl mt-1">{s.value}</p>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </motion.div>
             </div>
           </Tab.Panel>
 
+          {/* Inventory Reports */}
           <Tab.Panel>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-4">Stock Levels</h3>
-                <div className="space-y-4">
-                  {inventory.stockLevels.map((item, index) => (
-                    <div key={index} className="p-4 border rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Stock Levels
+                </h3>
+                <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                  {/* Pastikan map berjalan pada array yang ada (stockLevels) */}
+                  {inventory.stockLevels.map((item, i) => (
+                    <div
+                      key={i}
+                      className="p-4 rounded-xl border bg-gray-50 hover:bg-gray-100 transition"
+                    >
+                      <div className="flex justify-between mb-2">
                         <span className="font-medium">{item.name}</span>
-                        <span className={item.isLow ? "text-red-500" : "text-green-500"}>
-                          {item.isLow ? "Low Stock" : "Good"}
+                        <span
+                          className={`text-sm ${
+                            item.isLow ? "text-red-500" : "text-green-600"
+                          }`}
+                        >
+                          {item.isLow ? "Low Stock" : "Healthy"}
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div 
-                          className={`h-2.5 rounded-full ${item.isLow ? "bg-red-600" : "bg-green-600"}`} 
-                          style={{ width: `${Math.min((item.stock / 100) * 100, 100)}%` }}
+                        <div
+                          className={`h-2.5 rounded-full transition-all duration-500 ${
+                            item.isLow ? "bg-red-500" : "bg-green-500"
+                          }`}
+                          style={{ width: `${item.stock}%` }}
                         ></div>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-4">Inventory Value</h3>
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Inventory Value
+                </h3>
                 <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Total Inventory Value</p>
-                    <p className="text-2xl font-bold text-blue-600">{formatCurrency(inventory.totalValue)}</p>
+                  <div className="p-4 bg-indigo-50 rounded-xl">
+                    <p className="text-sm text-gray-600">Total Inventory</p>
+                    <p className="text-2xl font-bold text-indigo-600">
+                      {formatCurrency(inventory.totalValue)}
+                    </p>
                   </div>
-                  <div className="p-4 bg-yellow-50 rounded-lg">
+                  <div className="p-4 bg-yellow-50 rounded-xl">
                     <p className="text-sm text-gray-600">Low Stock Items</p>
-                    <p className="text-2xl font-bold text-yellow-600">{inventory.lowStockItems} items</p>
+                    <p className="text-2xl font-bold text-yellow-600">
+                      {inventory.lowStockItems} items
+                    </p>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </Tab.Panel>
 
+          {/* Financial Reports */}
           <Tab.Panel>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-4 rounded-lg shadow md:col-span-2">
-                <h3 className="text-lg font-semibold mb-4">Financial Overview</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Revenue</p>
-                    <p className="text-2xl font-bold text-green-600">{formatCurrency(financials.revenue)}</p>
-                  </div>
-                  <div className="p-4 bg-red-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Expenses</p>
-                    <p className="text-2xl font-bold text-red-600">{formatCurrency(financials.expenses)}</p>
-                  </div>
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Profit</p>
-                    <p className="text-2xl font-bold text-blue-600">{formatCurrency(financials.profit)}</p>
-                  </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Financial Overview
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {[
+                    {
+                      title: "Revenue",
+                      value: formatCurrency(financials.revenue),
+                      color: "bg-green-50 text-green-600",
+                    },
+                    {
+                      title: "Expenses",
+                      value: formatCurrency(financials.expenses),
+                      color: "bg-red-50 text-red-600",
+                    },
+                    {
+                      title: "Profit",
+                      value: formatCurrency(financials.profit),
+                      color: "bg-blue-50 text-blue-600",
+                    },
+                  ].map((item, i) => (
+                    <div
+                      key={i}
+                      className={`p-5 rounded-xl ${item.color} text-center font-semibold shadow-inner`}
+                    >
+                      <p className="text-sm text-gray-600">{item.title}</p>
+                      <p className="text-2xl mt-1">{item.value}</p>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-4">Revenue Breakdown</h3>
-                <BarChart width={500} height={300} data={salesData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                  <Bar dataKey="sales" fill="#4CAF50" />
-                </BarChart>
-              </div>
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Revenue Breakdown
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={salesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                    <Bar dataKey="sales" fill="#10B981" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </motion.div>
 
-              <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-4">Recent Transactions</h3>
-                <div className="space-y-3">
-                  {financials.recentTransactions.map((transaction, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+              <motion.div
+                whileHover={{ scale: 1.01 }}
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Recent Transactions
+                </h3>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  {/* Pastikan map berjalan pada array yang ada (recentTransactions) */}
+                  {financials.recentTransactions.map((t, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border hover:bg-gray-100 transition"
+                    >
                       <div>
-                        <p className="font-medium">Transaction #{transaction.id}</p>
-                        <p className="text-sm text-gray-600">{format(new Date(transaction.date), 'dd MMM yyyy')}</p>
+                        <p className="font-medium">#{t.id}</p>
+                        <p className="text-sm text-gray-500">
+                          {format(new Date(t.date), "dd MMM yyyy")}
+                        </p>
                       </div>
-                      <span className={`font-medium ${transaction.type === 'expense' ? 'text-red-600' : 'text-green-600'}`}>
-                        {transaction.type === 'expense' ? '- ' : '+ '}
-                        {formatCurrency(transaction.total)}
+                      <span
+                        className={`font-semibold ${
+                          t.type === "expense"
+                            ? "text-red-500"
+                            : "text-green-600"
+                        }`}
+                      >
+                        {t.type === "expense" ? "- " : "+ "}
+                        {formatCurrency(t.total)}
                       </span>
                     </div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             </div>
           </Tab.Panel>
         </Tab.Panels>
@@ -227,5 +364,6 @@ const Reports = () => {
     </div>
   );
 };
+
 
 export default Reports;
