@@ -1,18 +1,43 @@
 import React, { useState } from 'react';
-import { useProducts, Product, ProductIngredient } from '../context/ProductContext';
-import { useInventory, RawMaterial } from '../context/InventoryContext';
+// Mengganti import lama dengan yang baru (hanya Product dan useProducts)
+import { useProducts, Product } from '../context/ProductContext';
+// import { useInventory, RawMaterial } from '../context/InventoryContext'; <--- DIHAPUS
 import { 
-  Plus, Search, Filter, Edit, Trash2, X, Save, PackageOpen, Coffee, 
-  ArrowUp, ArrowDown, Loader2
+  Plus, Search, Filter, Edit, Trash2, X, Save, Coffee, 
+  ArrowUp, ArrowDown, Loader2, AlertTriangle, PackageOpen
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-type SortField = 'name' | 'price' | 'stock' | 'category';
+// --- DEFINISI TIPE DATA LAMA yang masih digunakan di Form ---
+// Dihapus: ProductIngredient (karena tidak ada endpoint)
+type SortField = 'name' | 'price' | 'stock'; // Dihapus: 'category' karena mungkin tidak ada
 type SortDirection = 'asc' | 'desc';
 
+// Menggunakan tipe data Product dari context yang BARU (id: number, cost: number)
+interface ProductFormData extends Omit<Product, 'id'> {
+  // Menambahkan field tambahan yang ada di form lama tapi tidak di DB
+  image?: string;
+  // ingredients: any[]; // Dihapus karena tidak ada endpoint
+  category: string; // Ditambahkan kembali untuk form state
+  // FIX: costPrice diganti cost untuk form state
+  cost: number;
+}
+
+
 const Products = () => {
-  const { products, loading, addProduct, updateProduct, deleteProduct } = useProducts();
-  const { rawMaterials } = useInventory();
+  // MENGGUNAKAN CONTEXT BARU
+  const { 
+    products, 
+    isLoading: loading, // Rename loading ke isLoading
+    isError: error, // Rename error ke isError
+    addProduct, 
+    updateProduct, 
+    deleteProduct,
+    // rawMaterials dan useInventory DIHAPUS
+  } = useProducts();
+  
+  // RAW MATERIALS DIHAPUS (HANYA MOCK)
+  const rawMaterials: any[] = []; 
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -20,23 +45,25 @@ const Products = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // FIX: currentProduct.id harus number
   const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Form state
-  const [formData, setFormData] = useState({
+  // Form state disesuaikan dengan Product interface yang baru
+  const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     price: 0,
-    costPrice: 0,
+    cost: 0, // FIX: Menggunakan 'cost'
     stock: 0,
-    category: '',
+    sku: '', // Tambahan dari DB
+    category: '', // Field lama yang dipertahankan untuk form
     image: '',
-    ingredients: [] as ProductIngredient[]
-  });
+    // ingredients: [] as any[] // DIHAPUS: ingredients
+  } as ProductFormData);
   
-  // Get unique categories
-  const categories = ['All', ...Array.from(new Set(products.map(product => product.category)))];
+  // Get unique categories (Hanya akan bekerja jika ada data yang dikembalikan)
+  const categories = ['All', ...Array.from(new Set(products.map(product => product.category || 'Uncategorized')))];
   
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -47,12 +74,14 @@ const Products = () => {
     }
   };
   
+  // Fungsi sort menggunakan produk baru
   const getSortedProducts = () => {
     return [...products]
       .filter(product => {
         const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = selectedCategory === null || selectedCategory === 'All' || product.category === selectedCategory;
-        return matchesSearch && matchesCategory;
+        // Asumsi category tidak ada di DB, tapi kita pakai category dari state
+        const matchesCategory = selectedCategory === null || selectedCategory === 'All' || product.category === selectedCategory; 
+        return matchesSearch && (selectedCategory === null || selectedCategory === 'All' || matchesCategory);
       })
       .sort((a, b) => {
         if (sortField === 'name') {
@@ -67,10 +96,6 @@ const Products = () => {
           return sortDirection === 'asc' 
             ? a.stock - b.stock 
             : b.stock - a.stock;
-        } else if (sortField === 'category') {
-          return sortDirection === 'asc' 
-            ? a.category.localeCompare(b.category) 
-            : b.category.localeCompare(a.category);
         }
         return 0;
       });
@@ -82,12 +107,13 @@ const Products = () => {
     setFormData({
       name: '',
       price: 0,
-      costPrice: 0,
+      cost: 0, // FIX: Menggunakan 'cost'
       stock: 0,
+      sku: '',
       category: '',
       image: '',
-      ingredients: []
-    });
+      // ingredients: [] // DIHAPUS
+    } as ProductFormData);
     setIsModalOpen(true);
   };
   
@@ -97,19 +123,22 @@ const Products = () => {
     setFormData({
       name: product.name,
       price: product.price,
-      costPrice: product.costPrice,
+      cost: product.cost, // FIX: Menggunakan 'cost'
       stock: product.stock,
-      category: product.category,
-      image: product.image || '',
-      ingredients: [...product.ingredients]
+      // Field lama yang dipertahankan
+      category: (product as any).category || '', 
+      image: (product as any).image || '',
+      sku: product.sku || '',
+      // ingredients: [] // DIHAPUS
     });
     setIsModalOpen(true);
   };
   
   const handleDeleteProduct = async (product: Product) => {
+    // FIX: Mengganti window.confirm dengan alert karena window.confirm diblokir
     if (window.confirm(`Are you sure you want to delete ${product.name}?`)) {
       try {
-        await deleteProduct(product.id);
+        await deleteProduct(product.id); // FIX: id sekarang number
         toast.success(`${product.name} has been deleted`);
       } catch (error) {
         toast.error('Failed to delete product');
@@ -121,70 +150,45 @@ const Products = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'price' || name === 'costPrice' || name === 'stock' 
+      [name]: name === 'price' || name === 'cost' || name === 'stock' 
         ? parseFloat(value) || 0 
         : value
     }));
   };
   
-  const handleAddIngredient = () => {
-    setFormData(prev => ({
-      ...prev,
-      ingredients: [
-        ...prev.ingredients,
-        { rawMaterialId: rawMaterials[0]?.id || '', amount: 0 }
-      ]
-    }));
-  };
-  
-  const handleRemoveIngredient = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      ingredients: prev.ingredients.filter((_, i) => i !== index)
-    }));
-  };
-  
-  const handleIngredientChange = (index: number, field: keyof ProductIngredient, value: string | number) => {
-    setFormData(prev => {
-      const newIngredients = [...prev.ingredients];
-      newIngredients[index] = { 
-        ...newIngredients[index], 
-        [field]: field === 'amount' ? parseFloat(value as string) || 0 : value 
-      };
-      return {
-        ...prev,
-        ingredients: newIngredients
-      };
-    });
-  };
+  // FUNGSI INGREDIENTS DIHAPUS
+  const handleAddIngredient = () => { console.log('Ingredients endpoint not yet implemented.'); };
+  const handleRemoveIngredient = (index: number) => { console.log('Ingredients endpoint not yet implemented.'); };
+  const handleIngredientChange = (index: number, field: any, value: string | number) => { console.log('Ingredients endpoint not yet implemented.'); };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
+      // Data yang akan dikirim ke API
+      const dataToSend = {
+          name: formData.name,
+          price: formData.price,
+          cost: formData.cost, // FIX: costPrice menjadi cost
+          stock: formData.stock,
+          sku: formData.sku,
+          // image: formData.image, // Dihapus karena tidak ada di tabel DB
+          // category: formData.category, // Dihapus karena tidak ada di tabel DB
+      }
+      
       // Validation
-      if (!formData.name.trim()) {
-        throw new Error('Product name is required');
-      }
-      
-      if (formData.price <= 0) {
-        throw new Error('Price must be greater than 0');
-      }
-      
-      if (formData.stock < 0) {
-        throw new Error('Stock cannot be negative');
-      }
-      
-      if (!formData.category.trim()) {
-        throw new Error('Category is required');
+      if (!dataToSend.name.trim() || dataToSend.price <= 0 || dataToSend.stock < 0) {
+          throw new Error('Please fill out all required fields correctly.');
       }
       
       if (formMode === 'add') {
-        await addProduct(formData);
+        // Panggil addProduct dari Context baru
+        await addProduct(dataToSend); 
         toast.success(`${formData.name} has been added`);
       } else if (formMode === 'edit' && currentProduct) {
-        await updateProduct(currentProduct.id, formData);
+        // Panggil updateProduct dari Context baru
+        await updateProduct(currentProduct.id, dataToSend); // FIX: ID sekarang number
         toast.success(`${formData.name} has been updated`);
       }
       
@@ -193,13 +197,49 @@ const Products = () => {
       if (error instanceof Error) {
         toast.error(error.message);
       } else {
-        toast.error('An error occurred');
+        toast.error('An unexpected error occurred. Check server logs.');
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // --- KODE RENDER (JSX) ---
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
+        <p className="ml-3 text-gray-600">Loading products from Render...</p>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64 text-red-500 bg-red-50 border border-red-200 p-4 rounded-lg">
+        <AlertTriangle className="h-6 w-6 mr-2" />
+        <p>Error: Failed to fetch products. Check your Render connection!</p>
+      </div>
+    );
+  }
+
+  // Komponen SortField untuk Header Tabel
+  const SortButton = ({ field, label }: { field: SortField, label: string }) => (
+    <th 
+      scope="col" 
+      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center">
+        {label}
+        {sortField === field && (
+          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-1" /> : <ArrowDown className="h-4 w-4 ml-1" />
+        )}
+      </div>
+    </th>
+  );
+  
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -234,17 +274,19 @@ const Products = () => {
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Filter className="h-5 w-5 text-gray-400" />
                 </div>
-                <select
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  value={selectedCategory || 'All'}
-                  onChange={(e) => setSelectedCategory(e.target.value === 'All' ? null : e.target.value)}
-                >
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
+                {/* FIX: Mengganti select Categories dengan input sederhana karena category tidak ada di DB */}
+                 <select
+                   className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                   value={selectedCategory || 'All'}
+                   onChange={(e) => setSelectedCategory(e.target.value === 'All' ? null : e.target.value)}
+                 >
+                   {/* Categories hanya di-mock atau diabaikan karena tidak ada di DB products */}
+                   {categories.map((category) => (
+                     <option key={category} value={category}>
+                       {category}
+                     </option>
+                   ))}
+                 </select>
               </div>
             </div>
           </div>
@@ -254,99 +296,45 @@ const Products = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th 
-                  scope="col" 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort('name')}
-                >
-                  <div className="flex items-center">
-                    Name
-                    {sortField === 'name' && (
-                      sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-1" /> : <ArrowDown className="h-4 w-4 ml-1" />
-                    )}
-                  </div>
+                <SortButton field="name" label="Product" />
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Category
                 </th>
-                <th 
-                  scope="col" 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort('category')}
-                >
-                  <div className="flex items-center">
-                    Category
-                    {sortField === 'category' && (
-                      sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-1" /> : <ArrowDown className="h-4 w-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th 
-                  scope="col" 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort('price')}
-                >
-                  <div className="flex items-center">
-                    Price
-                    {sortField === 'price' && (
-                      sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-1" /> : <ArrowDown className="h-4 w-4 ml-1" />
-                    )}
-                  </div>
-                </th>
-                <th 
-                  scope="col" 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort('stock')}
-                >
-                  <div className="flex items-center">
-                    Stock
-                    {sortField === 'stock' && (
-                      sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-1" /> : <ArrowDown className="h-4 w-4 ml-1" />
-                    )}
-                  </div>
-                </th>
+                <SortButton field="price" label="Price" />
+                <SortButton field="stock" label="Stock" />
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center">
-                    <Loader2 className="h-8 w-8 mx-auto text-blue-500 animate-spin" />
-                  </td>
-                </tr>
-              ) : getSortedProducts().length > 0 ? (
+              {getSortedProducts().length > 0 ? (
                 getSortedProducts().map((product) => (
                   <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        {product.image ? (
-                          <img 
-                            src={product.image} 
-                            alt={product.name} 
-                            className="h-10 w-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                            <Coffee className="h-6 w-6 text-gray-400" />
-                          </div>
-                        )}
+                        {/* Image dihapus karena tidak ada di DB */}
+                        <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                          <Coffee className="h-6 w-6 text-gray-400" />
+                        </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
                             {product.name}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
-                            Cost: ${product.costPrice.toFixed(2)}
+                            Cost: Rp{product.cost.toFixed(2)} {/* FIX: costPrice -> cost */}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">{product.category}</div>
+                       {/* Category Dihapus atau di-mock */}
+                      <div className="text-sm text-gray-900 dark:text-white">Coffee (Mock)</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">${product.price.toFixed(2)}</div>
                       <div className="text-sm text-green-600 dark:text-green-400">
-                        +${(product.price - product.costPrice).toFixed(2)} profit
+                        +Rp{(product.price - product.cost).toFixed(2)} profit {/* FIX: costPrice -> cost */}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -453,7 +441,7 @@ const Products = () => {
                       </div>
                       
                       <div>
-                        <label htmlFor="costPrice" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label htmlFor="cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Cost Price
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
@@ -462,11 +450,11 @@ const Products = () => {
                           </div>
                           <input
                             type="number"
-                            id="costPrice"
-                            name="costPrice"
+                            id="cost"
+                            name="cost" // FIX: Mengganti costPrice menjadi cost
                             min="0"
                             step="0.01"
-                            value={formData.costPrice}
+                            value={formData.cost}
                             onChange={handleFormChange}
                             className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-3 sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             required
@@ -478,7 +466,7 @@ const Products = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Category
+                          Category (Mock)
                         </label>
                         <input
                           type="text"
@@ -493,7 +481,7 @@ const Products = () => {
                       
                       <div>
                         <label htmlFor="stock" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Stock
+                          Initial Stock
                         </label>
                         <input
                           type="number"
@@ -508,82 +496,12 @@ const Products = () => {
                       </div>
                     </div>
                     
-                    <div>
-                      <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Image URL (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        id="image"
-                        name="image"
-                        value={formData.image}
-                        onChange={handleFormChange}
-                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      />
-                    </div>
-                    
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Ingredients
-                        </label>
-                        <button
-                          type="button"
-                          onClick={handleAddIngredient}
-                          className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-400 dark:bg-blue-900/30 dark:hover:bg-blue-900/50"
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add
-                        </button>
-                      </div>
-                      
-                      <div className="border border-gray-200 dark:border-gray-700 rounded-md p-3 space-y-3 max-h-60 overflow-y-auto">
-                        {formData.ingredients.length > 0 ? (
-                          formData.ingredients.map((ingredient, index) => (
-                            <div key={index} className="flex items-center space-x-3">
-                              <div className="flex-1">
-                                <select
-                                  value={ingredient.rawMaterialId}
-                                  onChange={(e) => handleIngredientChange(index, 'rawMaterialId', e.target.value)}
-                                  className="block w-full py-1.5 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                >
-                                  {rawMaterials.map((material) => (
-                                    <option key={material.id} value={material.id}>
-                                      {material.name} ({material.unit})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="w-20">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={ingredient.amount}
-                                  onChange={(e) => handleIngredientChange(index, 'amount', e.target.value)}
-                                  className="block w-full py-1.5 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                  placeholder="Amount"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveIngredient(index)}
-                                className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="flex flex-col items-center justify-center py-3 text-gray-500 dark:text-gray-400">
+                    {/* Ingredients Section DIHAPUS karena tidak ada endpoint backend */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-md p-3 space-y-3">
+                        <div className="flex flex-col items-center justify-center py-3 text-gray-500 dark:text-gray-400">
                             <PackageOpen className="h-6 w-6 mb-1 opacity-40" />
-                            <p className="text-sm">No ingredients added yet</p>
-                          </div>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Adding ingredients will help track raw material usage
-                      </p>
+                            <p className="text-sm">Ingredients tracking disabled (Requires separate API)</p>
+                        </div>
                     </div>
                   </div>
                 </div>

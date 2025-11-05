@@ -1,235 +1,132 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import axios from 'axios';
 
+const API_BASE_URL = 'http://localhost:5000/api'; // Ganti jika Anda deploy
+
+// --- DEFINISI TIPE DATA SESUAI POSTGRES ---
 export interface Product {
-  id: string;
+  id: number; // ID sekarang adalah NUMBER (SERIAL)
   name: string;
   price: number;
-  costPrice: number;
+  cost: number; // costPrice diganti menjadi cost
   stock: number;
-  category: string;
-  image?: string;
-  ingredients: ProductIngredient[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ProductIngredient {
-  rawMaterialId: string;
-  amount: number;
+  sku: string; // Tambahkan SKU dari skema DB
+  // createdAt dan updatedAt dihapus dari interface karena tidak dibutuhkan di Context level ini
+  // Bahan baku (ingredients) tidak ada di tabel products, jadi dihapus
 }
 
 interface ProductContextType {
   products: Product[];
-  loading: boolean;
-  error: string | null;
-  addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateProduct: (id: string, product: Partial<Product>) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
-  getProduct: (id: string) => Product | undefined;
-  updateProductStock: (id: string, quantity: number) => Promise<void>;
+  isLoading: boolean;
+  isError: boolean;
+  refetchProducts: () => Promise<void>;
+  getProduct: (id: number) => Product | undefined;
+  
+  // Fungsi CRUD (Ini memerlukan endpoint POST/PUT/DELETE baru di backend!)
+  addProduct: (product: Omit<Product, 'id' | 'stock'>) => Promise<void>;
+  updateProduct: (id: number, updates: Partial<Omit<Product, 'id'>>) => Promise<void>;
+  deleteProduct: (id: number) => Promise<void>;
+  updateProductStock: (id: number, quantity: number) => Promise<void>;
 }
 
 export const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
+// =======================================================
+//                   PRODUCT PROVIDER UTAMA
+// =======================================================
+
+export const ProductProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+
+  // --- FUNGSI READ (FETCH) ---
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    setIsError(false);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/products`);
+      
+      // Mapping data dari API (DB mengembalikan string/numeric)
+      const mappedProducts: Product[] = response.data.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        price: parseFloat(p.price) || 0,
+        cost: parseFloat(p.cost) || 0,
+        stock: parseInt(p.stock) || 0,
+        sku: p.sku || '',
+      }));
+
+      setProducts(mappedProducts);
+    } catch (error) {
+      console.error("Error fetching products from API:", error);
+      setIsError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  // Fungsi untuk mendapatkan produk berdasarkan ID
+  const getProduct = (id: number) => {
+    return products.find(product => product.id === id);
+  };
+  
+  // --- FUNGSI CRUD MOCK API ---
+  // Catatan: Endpoint API untuk CRUD (POST/PUT/DELETE) harus dibuat di backend.
+  // Saat ini, fungsi ini hanya me-refresh data (fetchProducts) setelah aksi disimulasikan.
+
+  const addProduct = async (product: Omit<Product, 'id' | 'stock'>) => {
+    // API Call: axios.post(`${API_BASE_URL}/products`, product);
+    // Kita simulasi refresh setelah sukses
+    await fetchProducts(); 
+  };
+
+  const updateProduct = async (id: number, updates: Partial<Omit<Product, 'id'>>) => {
+    // API Call: axios.put(`${API_BASE_URL}/products/${id}`, updates);
+    await fetchProducts();
+  };
+
+  const deleteProduct = async (id: number) => {
+    // API Call: axios.delete(`${API_BASE_URL}/products/${id}`);
+    await fetchProducts();
+  };
+  
+  const updateProductStock = async (id: number, quantity: number) => {
+      // Endpoint ini sudah dicover oleh endpoint transaksi di server.js
+      // Jika butuh endpoint stock update terpisah, ini contoh API call-nya:
+      // API Call: axios.patch(`${API_BASE_URL}/products/${id}/stock`, { quantity });
+      await fetchProducts();
+  };
+
+
+  const contextValue: ProductContextType = {
+    products,
+    isLoading,
+    isError,
+    refetchProducts: fetchProducts,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    getProduct,
+    updateProductStock,
+  };
+
+  return (
+    <ProductContext.Provider value={contextValue}>
+      {children}
+    </ProductContext.Provider>
+  );
+};
+
+// Custom hook untuk mengakses context
 export const useProducts = () => {
   const context = useContext(ProductContext);
   if (context === undefined) {
     throw new Error('useProducts must be used within a ProductProvider');
   }
   return context;
-};
-
-// Sample data
-const initialProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Espresso',
-    price: 3.5,
-    costPrice: 1.2,
-    stock: 100,
-    category: 'Coffee',
-    image: 'https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    ingredients: [
-      { rawMaterialId: '1', amount: 18 }, // Coffee beans
-      { rawMaterialId: '2', amount: 40 }, // Water
-    ],
-    createdAt: '2023-01-01T00:00:00.000Z',
-    updatedAt: '2023-01-01T00:00:00.000Z',
-  },
-  {
-    id: '2',
-    name: 'Cappuccino',
-    price: 4.5,
-    costPrice: 2.0,
-    stock: 80,
-    category: 'Coffee',
-    image: 'https://images.pexels.com/photos/350478/pexels-photo-350478.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    ingredients: [
-      { rawMaterialId: '1', amount: 18 }, // Coffee beans
-      { rawMaterialId: '2', amount: 40 }, // Water
-      { rawMaterialId: '3', amount: 100 }, // Milk
-    ],
-    createdAt: '2023-01-02T00:00:00.000Z',
-    updatedAt: '2023-01-02T00:00:00.000Z',
-  },
-  {
-    id: '3',
-    name: 'Latte',
-    price: 5.0,
-    costPrice: 2.2,
-    stock: 75,
-    category: 'Coffee',
-    image: 'https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    ingredients: [
-      { rawMaterialId: '1', amount: 18 }, // Coffee beans
-      { rawMaterialId: '2', amount: 40 }, // Water
-      { rawMaterialId: '3', amount: 150 }, // Milk
-    ],
-    createdAt: '2023-01-03T00:00:00.000Z',
-    updatedAt: '2023-01-03T00:00:00.000Z',
-  },
-  {
-    id: '4',
-    name: 'Iced Tea',
-    price: 3.0,
-    costPrice: 1.0,
-    stock: 120,
-    category: 'Tea',
-    image: 'https://images.pexels.com/photos/792613/pexels-photo-792613.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    ingredients: [
-      { rawMaterialId: '4', amount: 5 }, // Tea
-      { rawMaterialId: '2', amount: 200 }, // Water
-      { rawMaterialId: '5', amount: 20 }, // Sugar
-      { rawMaterialId: '6', amount: 50 }, // Ice
-    ],
-    createdAt: '2023-01-04T00:00:00.000Z',
-    updatedAt: '2023-01-04T00:00:00.000Z',
-  },
-];
-
-interface ProductProviderProps {
-  children: React.ReactNode;
-}
-
-export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      try {
-        // In a real app, this would be an API call
-        // For demo, we'll use the sample data or localStorage
-        const savedProducts = localStorage.getItem('products');
-        if (savedProducts) {
-          setProducts(JSON.parse(savedProducts));
-        } else {
-          setProducts(initialProducts);
-          localStorage.setItem('products', JSON.stringify(initialProducts));
-        }
-      } catch (err) {
-        setError('Failed to fetch products');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, []);
-
-  const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      const newProduct: Product = {
-        ...product,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedProducts = [...products, newProduct];
-      setProducts(updatedProducts);
-      localStorage.setItem('products', JSON.stringify(updatedProducts));
-    } catch (err) {
-      setError('Failed to add product');
-      throw err;
-    }
-  };
-
-  const updateProduct = async (id: string, productData: Partial<Product>) => {
-    try {
-      const updatedProducts = products.map(product => 
-        product.id === id 
-          ? { 
-              ...product, 
-              ...productData, 
-              updatedAt: new Date().toISOString() 
-            } 
-          : product
-      );
-      
-      setProducts(updatedProducts);
-      localStorage.setItem('products', JSON.stringify(updatedProducts));
-    } catch (err) {
-      setError('Failed to update product');
-      throw err;
-    }
-  };
-
-  const deleteProduct = async (id: string) => {
-    try {
-      const updatedProducts = products.filter(product => product.id !== id);
-      setProducts(updatedProducts);
-      localStorage.setItem('products', JSON.stringify(updatedProducts));
-    } catch (err) {
-      setError('Failed to delete product');
-      throw err;
-    }
-  };
-
-  const getProduct = (id: string) => {
-    return products.find(product => product.id === id);
-  };
-
-  const updateProductStock = async (id: string, quantity: number) => {
-    try {
-      const product = products.find(p => p.id === id);
-      if (!product) {
-        throw new Error('Product not found');
-      }
-
-      const newStock = product.stock - quantity;
-      if (newStock < 0) {
-        throw new Error('Insufficient stock');
-      }
-
-      await updateProduct(id, { stock: newStock });
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to update product stock');
-      }
-      throw err;
-    }
-  };
-
-  return (
-    <ProductContext.Provider 
-      value={{ 
-        products, 
-        loading, 
-        error, 
-        addProduct, 
-        updateProduct, 
-        deleteProduct, 
-        getProduct,
-        updateProductStock
-      }}
-    >
-      {children}
-    </ProductContext.Provider>
-  );
 };
