@@ -1,90 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { useProducts } from '../context/ProductContext';
-import { useTransactions } from '../context/TransactionContext';
-import { useInventory } from '../context/InventoryContext';
+import React, { useState } from 'react';
+// Hapus import context lama yang tidak diperlukan lagi
+// import { useProducts } from '../context/ProductContext';
+// import { useTransactions } from '../context/TransactionContext';
+// import { useInventory } from '../context/InventoryContext';
 import { AlertTriangle, TrendingUp, ShoppingCart, Package, DollarSign, Calendar, ArrowUpRight, Box } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useDashboardData } from '../hooks/useDashboardData.tsx'; // Import hook API baru
 
 const Dashboard = () => {
-  const { products } = useProducts();
-  const { transactions } = useTransactions();
-  const { rawMaterials } = useInventory();
-  
+  // Hanya perlu state untuk rentang waktu
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
-  const [stats, setStats] = useState({
-    sales: 0,
-    profit: 0,
-    orders: 0,
-    averageOrder: 0
-  });
+
+  // Ambil semua data dan status dari hook API
+  const { stats, products, topProducts, lowStockProducts, isLoading, isError } = useDashboardData(timeRange);
   
-  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-  
-  useEffect(() => {
-    // Calculate date ranges
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const monthAgo = new Date(today);
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
-    
-    // Filter transactions based on time range
-    const filteredTransactions = transactions.filter(transaction => {
-      const transactionDate = new Date(transaction.date);
-      if (timeRange === 'today') {
-        return transactionDate >= today;
-      } else if (timeRange === 'week') {
-        return transactionDate >= weekAgo;
-      } else {
-        return transactionDate >= monthAgo;
-      }
-    });
-    
-    // Calculate stats
-    const totalSales = filteredTransactions.reduce((sum, transaction) => sum + transaction.total, 0);
-    const totalProfit = filteredTransactions.reduce((sum, transaction) => sum + transaction.profit, 0);
-    const orderCount = filteredTransactions.length;
-    
-    setStats({
-      sales: totalSales,
-      profit: totalProfit,
-      orders: orderCount,
-      averageOrder: orderCount > 0 ? totalSales / orderCount : 0
-    });
-    
-    // Find low stock products (less than 10 items)
-    const lowStock = products
-      .filter(product => product.stock < 10)
-      .sort((a, b) => a.stock - b.stock)
-      .slice(0, 5);
-    setLowStockProducts(lowStock);
-    
-    // Calculate top selling products
-    const productSales: Record<string, { id: string; name: string; quantity: number; total: number }> = {};
-    
-    filteredTransactions.forEach(transaction => {
-      transaction.items.forEach(item => {
-        if (!productSales[item.productId]) {
-          productSales[item.productId] = {
-            id: item.productId,
-            name: item.productName,
-            quantity: 0,
-            total: 0
-          };
-        }
-        productSales[item.productId].quantity += item.quantity;
-        productSales[item.productId].total += item.totalPrice;
-      });
-    });
-    
-    const topSellingProducts = Object.values(productSales)
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 5);
-    
-    setTopProducts(topSellingProducts);
-  }, [timeRange, transactions, products]);
+  // Fungsi utilitas untuk memformat mata uang (gunakan IDR)
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(value);
+
+  // --- TAMPILAN LOADING/ERROR ---
+  if (isLoading) {
+    return <div className="p-8 text-center text-xl text-blue-600">Loading Dashboard Data...</div>;
+  }
+
+  if (isError) {
+    return <div className="p-8 text-center text-red-600 bg-red-100 rounded-lg">Error connecting to database. Please check your backend server.</div>;
+  }
+  // --- END LOADING/ERROR ---
+
 
   return (
     <div className="space-y-6">
@@ -126,11 +73,12 @@ const Dashboard = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Sales */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Total Sales</p>
-              <h3 className="text-2xl font-bold mt-1">${stats.sales.toFixed(2)}</h3>
+              <h3 className="text-2xl font-bold mt-1">{formatCurrency(stats.sales)}</h3>
             </div>
             <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center">
               <DollarSign className="h-6 w-6" />
@@ -143,11 +91,12 @@ const Dashboard = () => {
           </div>
         </div>
         
+        {/* Profit */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Profit</p>
-              <h3 className="text-2xl font-bold mt-1">${stats.profit.toFixed(2)}</h3>
+              <h3 className="text-2xl font-bold mt-1">{formatCurrency(stats.profit)}</h3>
             </div>
             <div className="h-12 w-12 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center">
               <TrendingUp className="h-6 w-6" />
@@ -160,6 +109,7 @@ const Dashboard = () => {
           </div>
         </div>
         
+        {/* Orders */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -177,11 +127,12 @@ const Dashboard = () => {
           </div>
         </div>
         
+        {/* Avg. Order */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Avg. Order</p>
-              <h3 className="text-2xl font-bold mt-1">${stats.averageOrder.toFixed(2)}</h3>
+              <h3 className="text-2xl font-bold mt-1">{formatCurrency(stats.averageOrder)}</h3>
             </div>
             <div className="h-12 w-12 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center">
               <Calendar className="h-6 w-6" />
@@ -226,10 +177,10 @@ const Dashboard = () => {
                           {product.name}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
-                          {product.quantity}
+                          {product.value}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
-                          ${product.total.toFixed(2)}
+                          {formatCurrency(product.total)} 
                         </td>
                       </tr>
                     ))}
@@ -302,79 +253,76 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Inventory Summary */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="font-medium">Inventory Summary</h3>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Products</h4>
-                <Package className="h-5 w-5 text-blue-500" />
+        
+        {/* Inventory Summary */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="font-medium">Inventory Summary</h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Card 1: Products */}
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Products</h4>
+                  <Package className="h-5 w-5 text-blue-500" />
+                </div>
+                <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{products.length}</p>
+                <Link
+                  to="/dashboard/products"
+                  className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Manage
+                </Link>
               </div>
-              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{products.length}</p>
-              <Link
-                to="/dashboard/products"
-                className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Manage
-              </Link>
-            </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Raw Materials</h4>
-                <Box className="h-5 w-5 text-green-500" />
+              
+              {/* Card 2: Raw Materials (Data masih dari context lama, tidak terintegrasi) */}
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Raw Materials</h4>
+                  <Box className="h-5 w-5 text-green-500" />
+                </div>
+                {/* Kita anggap N/A untuk sementara karena tidak ada endpoint untuk rawMaterials */}
+                <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">N/A</p> 
+                <Link
+                  to="/dashboard/raw-materials"
+                  className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Manage
+                </Link>
               </div>
-              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{rawMaterials.length}</p>
-              <Link
-                to="/dashboard/raw-materials"
-                className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Manage
-              </Link>
-            </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Low Stock Items</h4>
-                <AlertTriangle className="h-5 w-5 text-orange-500" />
+              
+              {/* Card 3: Low Stock Items */}
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Low Stock Items</h4>
+                  <AlertTriangle className="h-5 w-5 text-orange-500" />
+                </div>
+                <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{lowStockProducts.length}</p>
+                <Link
+                  to="/dashboard/products"
+                  className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Review
+                </Link>
               </div>
-              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{lowStockProducts.length}</p>
-              <Link
-                to="/dashboard/products"
-                className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Review
-              </Link>
-            </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Sales Today</h4>
-                <ShoppingCart className="h-5 w-5 text-purple-500" />
+              
+              {/* Card 4: Total Sales Today (Gunakan stats.orders dari API summary) */}
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Orders</h4>
+                  <ShoppingCart className="h-5 w-5 text-purple-500" />
+                </div>
+                <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+                  {stats.orders} orders
+                </p>
+                <Link
+                  to="/dashboard/reports"
+                  className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  View reports
+                </Link>
               </div>
-              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
-                {transactions.filter(t => {
-                  const today = new Date();
-                  const transactionDate = new Date(t.date);
-                  return (
-                    transactionDate.getDate() === today.getDate() &&
-                    transactionDate.getMonth() === today.getMonth() &&
-                    transactionDate.getFullYear() === today.getFullYear()
-                  );
-                }).length}
-              </p>
-              <Link
-                to="/dashboard/reports"
-                className="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                View reports
-              </Link>
             </div>
           </div>
         </div>
