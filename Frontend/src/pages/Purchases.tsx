@@ -1,37 +1,181 @@
-import React, { useState } from 'react';
-import { useInventory, Purchase, PurchaseItem } from '../context/InventoryContext';
+import React, { useState, useEffect } from 'react';
+import { useInventory } from '../context/InventoryContext';
+import { api } from '../api';
 import { 
   Plus, Search, Filter, Edit, Trash2, X, Save, Loader2,
   ArrowUp, ArrowDown, DollarSign, Calendar
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatCurrency } from "../utils/currency";
 
-type SortField = 'date' | 'supplier' | 'totalAmount';
-type SortDirection = 'asc' | 'desc';
+type PurchaseItem = {
+  rawMaterialId: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
+  [key: string]: any;
+};
+
+type Purchase = {
+  id?: string;
+  date: string;
+  supplier: string;
+  items: PurchaseItem[];
+  totalAmount: number;
+  notes?: string;
+  [key: string]: any;
+};
 
 const Purchases = () => {
-  const { purchases, rawMaterials, loading, addPurchase } = useInventory();
-  
+  const { rawMaterials, loading: inventoryLoading, addPurchase } = useInventory();
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  
+  const [sortField, setSortField] = useState<'date' | 'supplier' | 'totalAmount'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Form state
-  const [formData, setFormData] = useState({
+
+  const [formData, setFormData] = useState<Purchase>({
     date: new Date().toISOString().split('T')[0],
     supplier: '',
-    items: [] as PurchaseItem[],
+    items: [],
+    totalAmount: 0,
     notes: ''
   });
-  
-  // Get unique suppliers for filtering
-  const suppliers = ['All', ...Array.from(new Set(purchases.map(purchase => purchase.supplier)))];
-  
-  const handleSort = (field: SortField) => {
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await api<any[]>('/purchases');
+        setPurchases((data || []).map(d => ({
+          id: d.id,
+          date: d.date ?? d.created_at ?? new Date().toISOString(),
+          supplier: d.supplier ?? '',
+          items: (d.items || d.line_items || []).map((it: any) => ({
+            rawMaterialId: it.raw_material_id ?? it.rawMaterialId ?? it.id,
+            quantity: Number(it.quantity ?? 0),
+            unitCost: Number(it.unit_cost ?? it.unitCost ?? it.cost ?? 0),
+            total: Number(it.total ?? it.quantity * (it.unit_cost ?? it.unitCost ?? 0)),
+          })),
+          totalAmount: Number(d.totalAmount ?? d.total ?? 0),
+          notes: d.notes ?? d.comment ?? '',
+        })));
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load purchases');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const suppliers = ['All', ...Array.from(new Set(purchases.map(p => p.supplier).filter(Boolean)))];
+
+  const handleAddPurchase = () => {
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      supplier: '',
+      items: [],
+      totalAmount: 0,
+      notes: ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddItem = () => {
+    setFormData(prev => ({
+      ...prev,
+      items: [...prev.items, { rawMaterialId: rawMaterials[0]?.id || '', quantity: 1, unitCost: 0, total: 0 }]
+    }));
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+  };
+
+  const handleItemChange = (index: number, field: keyof PurchaseItem, value: string | number) => {
+    setFormData(prev => {
+      const newItems = [...prev.items];
+      const item = { ...newItems[index] };
+      if (field === 'rawMaterialId') item.rawMaterialId = String(value);
+      else if (field === 'quantity' || field === 'unitCost') {
+        const num = parseFloat(String(value)) || 0;
+        item[field] = num;
+        item.total = (item.quantity || 0) * (item.unitCost || 0);
+      }
+      newItems[index] = item;
+      return { ...prev, items: newItems };
+    });
+  };
+
+  const calculateTotal = () => formData.items.reduce((sum, item) => sum + (item.total || 0), 0);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      if (!formData.supplier.trim()) throw new Error('Supplier is required');
+      if (formData.items.length === 0) throw new Error('At least one item is required');
+      for (const item of formData.items) {
+        if (item.quantity <= 0) throw new Error('Quantity must be > 0');
+        if (item.unitCost <= 0) throw new Error('Unit cost must be > 0');
+      }
+
+      const payload = {
+        date: formData.date,
+        supplier: formData.supplier,
+        items: formData.items.map(it => ({
+          raw_material_id: it.rawMaterialId,
+          quantity: it.quantity,
+          unit_cost: it.unitCost,
+          total: it.total
+        })),
+        totalAmount: calculateTotal(),
+        notes: formData.notes || undefined
+      };
+
+      if (typeof addPurchase === 'function') {
+        await addPurchase(payload as any);
+      } else {
+        await api('/purchases', { method: 'POST', body: payload });
+      }
+
+      toast.success('Purchase recorded successfully');
+      setIsModalOpen(false);
+      // reload purchases
+      const data = await api<any[]>('/purchases');
+      setPurchases((data || []).map(d => ({
+        id: d.id,
+        date: d.date ?? d.created_at ?? new Date().toISOString(),
+        supplier: d.supplier ?? '',
+        items: (d.items || d.line_items || []).map((it: any) => ({
+          rawMaterialId: it.raw_material_id ?? it.rawMaterialId ?? it.id,
+          quantity: Number(it.quantity ?? 0),
+          unitCost: Number(it.unit_cost ?? it.unitCost ?? it.cost ?? 0),
+          total: Number(it.total ?? it.quantity * (it.unit_cost ?? it.unitCost ?? 0)),
+        })),
+        totalAmount: Number(d.totalAmount ?? d.total ?? 0),
+        notes: d.notes ?? d.comment ?? '',
+      })));
+    } catch (error: any) {
+      toast.error(error?.message ?? 'An error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSort = (field: 'date' | 'supplier' | 'totalAmount') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -39,7 +183,7 @@ const Purchases = () => {
       setSortDirection('desc');
     }
   };
-  
+
   const getSortedPurchases = () => {
     return [...purchases]
       .filter(purchase => {
@@ -63,115 +207,6 @@ const Purchases = () => {
         }
         return 0;
       });
-  };
-  
-  const handleAddPurchase = () => {
-    setFormData({
-      date: new Date().toISOString().split('T')[0],
-      supplier: '',
-      items: [],
-      notes: ''
-    });
-    setIsModalOpen(true);
-  };
-  
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-  
-  const handleAddItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        {
-          rawMaterialId: rawMaterials[0]?.id || '',
-          quantity: 0,
-          unitCost: 0,
-          total: 0
-        }
-      ]
-    }));
-  };
-  
-  const handleRemoveItem = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  };
-  
-  const handleItemChange = (index: number, field: keyof PurchaseItem, value: string | number) => {
-    setFormData(prev => {
-      const newItems = [...prev.items];
-      const item = { ...newItems[index] };
-      
-      if (field === 'rawMaterialId') {
-        item.rawMaterialId = value as string;
-      } else if (field === 'quantity' || field === 'unitCost') {
-        const numValue = parseFloat(value as string) || 0;
-        item[field] = numValue;
-        item.total = item.quantity * item.unitCost;
-      }
-      
-      newItems[index] = item;
-      return {
-        ...prev,
-        items: newItems
-      };
-    });
-  };
-  
-  const calculateTotal = () => {
-    return formData.items.reduce((sum, item) => sum + item.total, 0);
-  };
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    
-    try {
-      // Validation
-      if (!formData.supplier.trim()) {
-        throw new Error('Supplier is required');
-      }
-      
-      if (formData.items.length === 0) {
-        throw new Error('At least one item is required');
-      }
-      
-      for (const item of formData.items) {
-        if (item.quantity <= 0) {
-          throw new Error('Quantity must be greater than 0');
-        }
-        if (item.unitCost <= 0) {
-          throw new Error('Unit cost must be greater than 0');
-        }
-      }
-      
-      await addPurchase({
-        date: formData.date,
-        supplier: formData.supplier,
-        items: formData.items,
-        totalAmount: calculateTotal(),
-        notes: formData.notes || undefined
-      });
-      
-      toast.success('Purchase recorded successfully');
-      setIsModalOpen(false);
-    } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error('An error occurred');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   return (
@@ -306,7 +341,7 @@ const Purchases = () => {
                           const material = rawMaterials.find(m => m.id === item.rawMaterialId);
                           return (
                             <div key={index} className="mb-1">
-                              {material?.name}: {item.quantity} {material?.unit} @ ${item.unitCost.toFixed(3)}
+                              {material?.name}: {item.quantity} {material?.unit} @ {formatCurrency(item.unitCost)}
                             </div>
                           );
                         })}
@@ -314,7 +349,7 @@ const Purchases = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        ${purchase.totalAmount.toFixed(2)}
+                        {formatCurrency(purchase.totalAmount)}
                       </div>
                     </td>
                   </tr>
@@ -435,7 +470,7 @@ const Purchases = () => {
                               <div className="col-span-3">
                                 <div className="relative">
                                   <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                                    <span className="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
+                                    <span className="text-gray-500 dark:text-gray-400 sm:text-sm">Rp</span>
                                   </div>
                                   <input
                                     type="number"
@@ -443,7 +478,7 @@ const Purchases = () => {
                                     step="0.001"
                                     value={item.unitCost}
                                     onChange={(e) => handleItemChange(index, 'unitCost', e.target.value)}
-                                    className="block w-full pl-5 pr-2 py-1.5 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    className="block w-full pl-8 pr-2 py-1.5 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     placeholder="Cost"
                                   />
                                 </div>
@@ -468,7 +503,7 @@ const Purchases = () => {
                       
                       {formData.items.length > 0 && (
                         <div className="mt-2 text-right text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Total: ${calculateTotal().toFixed(2)}
+                          Total: {formatCurrency(calculateTotal())}
                         </div>
                       )}
                     </div>

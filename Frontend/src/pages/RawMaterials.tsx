@@ -5,6 +5,7 @@ import {
   ArrowUp, ArrowDown, Box
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatCurrency } from "../utils/currency";
 
 type SortField = 'name' | 'stock' | 'unitCost' | 'supplier';
 type SortDirection = 'asc' | 'desc';
@@ -313,7 +314,7 @@ const RawMaterials = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        ${material.unitCost.toFixed(3)}/{material.unit}
+                        {formatCurrency(material.unitCost)}/{material.unit}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -426,7 +427,7 @@ const RawMaterials = () => {
                         </label>
                         <div className="mt-1 relative rounded-md shadow-sm">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <span className="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
+                            <span className="text-gray-500 dark:text-gray-400 sm:text-sm">Rp</span>
                           </div>
                           <input
                             type="number"

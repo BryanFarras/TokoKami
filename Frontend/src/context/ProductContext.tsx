@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { api } from "../api";
 
 export interface Product {
   id: string;
@@ -29,7 +30,7 @@ interface ProductContextType {
   updateProductStock: (id: string, quantity: number) => Promise<void>;
 }
 
-const ProductContext = createContext<ProductContextType | undefined>(undefined);
+export const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
 export const useProducts = () => {
   const context = useContext(ProductContext);
@@ -39,153 +40,104 @@ export const useProducts = () => {
   return context;
 };
 
-// Sample data
-const initialProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Espresso',
-    price: 3.5,
-    costPrice: 1.2,
-    stock: 100,
-    category: 'Coffee',
-    image: 'https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    ingredients: [
-      { rawMaterialId: '1', amount: 18 }, // Coffee beans
-      { rawMaterialId: '2', amount: 40 }, // Water
-    ],
-    createdAt: '2023-01-01T00:00:00.000Z',
-    updatedAt: '2023-01-01T00:00:00.000Z',
-  },
-  {
-    id: '2',
-    name: 'Cappuccino',
-    price: 4.5,
-    costPrice: 2.0,
-    stock: 80,
-    category: 'Coffee',
-    image: 'https://images.pexels.com/photos/350478/pexels-photo-350478.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    ingredients: [
-      { rawMaterialId: '1', amount: 18 }, // Coffee beans
-      { rawMaterialId: '2', amount: 40 }, // Water
-      { rawMaterialId: '3', amount: 100 }, // Milk
-    ],
-    createdAt: '2023-01-02T00:00:00.000Z',
-    updatedAt: '2023-01-02T00:00:00.000Z',
-  },
-  {
-    id: '3',
-    name: 'Latte',
-    price: 5.0,
-    costPrice: 2.2,
-    stock: 75,
-    category: 'Coffee',
-    image: 'https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    ingredients: [
-      { rawMaterialId: '1', amount: 18 }, // Coffee beans
-      { rawMaterialId: '2', amount: 40 }, // Water
-      { rawMaterialId: '3', amount: 150 }, // Milk
-    ],
-    createdAt: '2023-01-03T00:00:00.000Z',
-    updatedAt: '2023-01-03T00:00:00.000Z',
-  },
-  {
-    id: '4',
-    name: 'Iced Tea',
-    price: 3.0,
-    costPrice: 1.0,
-    stock: 120,
-    category: 'Tea',
-    image: 'https://images.pexels.com/photos/792613/pexels-photo-792613.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    ingredients: [
-      { rawMaterialId: '4', amount: 5 }, // Tea
-      { rawMaterialId: '2', amount: 200 }, // Water
-      { rawMaterialId: '5', amount: 20 }, // Sugar
-      { rawMaterialId: '6', amount: 50 }, // Ice
-    ],
-    createdAt: '2023-01-04T00:00:00.000Z',
-    updatedAt: '2023-01-04T00:00:00.000Z',
-  },
-];
-
 interface ProductProviderProps {
   children: React.ReactNode;
 }
 
+const mapFromApi = (p: any): Product => ({
+  id: String(p.id),
+  name: p.name,
+  price: Number(p.price || 0),
+  costPrice: Number(p.cost_price ?? p.costPrice ?? 0),
+  stock: Number(p.stock || 0),
+  category: p.category ?? "",
+  image: p.image ?? undefined,
+  ingredients: p.ingredients ?? [],
+  createdAt: p.created_at ?? p.createdAt ?? new Date().toISOString(),
+  updatedAt: p.updated_at ?? p.updatedAt ?? new Date().toISOString(),
+});
+
+const mapToApi = (p: Partial<Product>) => ({
+  name: p.name,
+  category: p.category,
+  price: p.price,
+  cost_price: p.costPrice,
+  stock: p.stock,
+  image: p.image,
+  // ingredients handling omitted — backend must support it if required
+});
+
 export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
+  const fetchProducts = async () => {
+    try {
       setLoading(true);
-      try {
-        // In a real app, this would be an API call
-        // For demo, we'll use the sample data or localStorage
-        const savedProducts = localStorage.getItem('products');
-        if (savedProducts) {
-          setProducts(JSON.parse(savedProducts));
-        } else {
-          setProducts(initialProducts);
-          localStorage.setItem('products', JSON.stringify(initialProducts));
-        }
-      } catch (err) {
-        setError('Failed to fetch products');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const data = await api<any[]>("/products");
+      setProducts((data || []).map(mapFromApi));
+      setError(null);
+    } catch (err) {
+      console.error("Failed to load products", err);
+      setError("Failed to load products");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchProducts();
   }, []);
 
   const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const newProduct: Product = {
-        ...product,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedProducts = [...products, newProduct];
-      setProducts(updatedProducts);
-      localStorage.setItem('products', JSON.stringify(updatedProducts));
+      setLoading(true);
+      await api("/products", {
+        method: "POST",
+        body: JSON.stringify(mapToApi(product)),
+      });
+      await fetchProducts();
+      setError(null);
     } catch (err) {
-      setError('Failed to add product');
+      console.error(err);
+      setError("Failed to add product");
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
   const updateProduct = async (id: string, productData: Partial<Product>) => {
     try {
-      const updatedProducts = products.map(product => 
-        product.id === id 
-          ? { 
-              ...product, 
-              ...productData, 
-              updatedAt: new Date().toISOString() 
-            } 
-          : product
-      );
-      
-      setProducts(updatedProducts);
-      localStorage.setItem('products', JSON.stringify(updatedProducts));
+      setLoading(true);
+      await api(`/products/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(mapToApi(productData)),
+      });
+      await fetchProducts();
+      setError(null);
     } catch (err) {
-      setError('Failed to update product');
+      console.error(err);
+      setError("Failed to update product");
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
   const deleteProduct = async (id: string) => {
     try {
-      const updatedProducts = products.filter(product => product.id !== id);
-      setProducts(updatedProducts);
-      localStorage.setItem('products', JSON.stringify(updatedProducts));
+      setLoading(true);
+      await api(`/products/${id}`, { method: "DELETE" });
+      await fetchProducts();
+      setError(null);
     } catch (err) {
-      setError('Failed to delete product');
+      console.error(err);
+      setError("Failed to delete product");
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -195,23 +147,14 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
 
   const updateProductStock = async (id: string, quantity: number) => {
     try {
-      const product = products.find(p => p.id === id);
-      if (!product) {
-        throw new Error('Product not found');
-      }
-
+      const product = getProduct(id);
+      if (!product) throw new Error("Product not found");
       const newStock = product.stock - quantity;
-      if (newStock < 0) {
-        throw new Error('Insufficient stock');
-      }
-
+      if (newStock < 0) throw new Error("Insufficient stock");
       await updateProduct(id, { stock: newStock });
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to update product stock');
-      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message ?? "Failed to update stock");
       throw err;
     }
   };

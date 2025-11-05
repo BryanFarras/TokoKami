@@ -1,99 +1,99 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { api } from "../api";
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'cashier';
-}
-
+interface User { id: string; name?: string; email?: string; [key: string]: any; }
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
   loading: boolean;
   error: string | null;
+  login: (credentials: { email: string; password: string }) => Promise<void>;
+  logout: () => Promise<void>;
+  fetchCurrentUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 };
 
-interface AuthProviderProps {
-  children: React.ReactNode;
+function normalizeToken(raw?: string | null) {
+  if (!raw) return null;
+  const t = String(raw).trim();
+  return t.replace(/^"|"$/g, "") || null;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(() => {
+    try { return normalizeToken(localStorage.getItem("token")); } catch { return null; }
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check for saved user on mount
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
-  }, []);
-
-  // Mock login function (replace with actual API call)
-  const login = async (email: string, password: string) => {
-    setLoading(true);
-    setError(null);
-
+  const fetchCurrentUser = async () => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // For demo purposes - validate hardcoded credentials
-      if (email === 'admin@example.com' && password === 'password') {
-        const user = {
-          id: '1',
-          name: 'Admin User',
-          email: 'admin@example.com',
-          role: 'admin' as const
-        };
-        
-        setUser(user);
-        localStorage.setItem('user', JSON.stringify(user));
-      } else if (email === 'cashier@example.com' && password === 'password') {
-        const user = {
-          id: '2',
-          name: 'Cashier User',
-          email: 'cashier@example.com',
-          role: 'cashier' as const
-        };
-        
-        setUser(user);
-        localStorage.setItem('user', JSON.stringify(user));
-      } else {
-        throw new Error('Invalid credentials');
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('An unexpected error occurred');
-      }
+      setLoading(true);
+      const data = await api<any>("/auth/me");
+      setUser(data || null);
+      setError(null);
+    } catch (err) {
+      setUser(null);
+      setError("Failed to fetch user");
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const login = async (credentials: { email: string; password: string }) => {
+    try {
+      setLoading(true);
+      const data = await api<any>("/auth/login", { method: "POST", body: credentials });
+      const receivedToken = normalizeToken(data?.token ?? null);
+      if (receivedToken) {
+        setToken(receivedToken);
+        localStorage.setItem("token", receivedToken);
+      } else {
+        localStorage.removeItem("token");
+        setToken(null);
+      }
+      if (data?.user) setUser(data.user);
+      else setUser(data || null);
+      setError(null);
+    } catch (err) {
+      setError("Login failed");
+      console.error(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const logout = async () => {
+    try {
+      setLoading(true);
+      await api("/auth/logout", { method: "POST" }).catch(()=>{});
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem("token");
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError("Logout failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) fetchCurrentUser();
+  }, [token]);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, error }}>
+    <AuthContext.Provider value={{ user, loading, error, login, logout, fetchCurrentUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,0 +1,40 @@
+# Node modules and lock/debug logs
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files (secrets)
+
+
+# Logs
+logs/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Build / coverage
+dist/
+build/
+coverage/
+.nyc_output/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Database files
+*.sqlite
+*.db
+
+# Certificates — ignore private keys and sensitive cert formats, but allow a public ca.pem if you keep it
+
+
+# Misc
+*.tgz
+.cache/
+.tmp/
+# End of file
