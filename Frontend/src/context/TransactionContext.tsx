@@ -51,7 +51,6 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const addTransaction = async (t: Omit<Transaction, "id" | "createdAt">) => {
     try {
       setLoading(true);
-      // backend expects items[].productId and fields like payment_method, cashier_name, customer_name
       const payload = {
         type: t.type,
         items: t.items.map(it => ({
