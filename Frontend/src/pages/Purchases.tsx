@@ -3,7 +3,7 @@ import { useInventory } from '../context/InventoryContext';
 import { api } from '../api';
 import { 
   Plus, Search, Filter, Edit, Trash2, X, Save, Loader2,
-  ArrowUp, ArrowDown, DollarSign, Calendar
+  ArrowUp, ArrowDown, DollarSign, Calendar, ArrowDownRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatCurrency } from "../utils/currency";
@@ -62,6 +62,7 @@ const Purchases = () => {
             unitCost: Number(it.unit_cost ?? it.unitCost ?? it.cost ?? 0),
             total: Number(it.total ?? it.quantity * (it.unit_cost ?? it.unitCost ?? 0)),
           })),
+          // Pastikan mengambil totalAmount atau total
           totalAmount: Number(d.totalAmount ?? d.total ?? 0),
           notes: d.notes ?? d.comment ?? '',
         })));
@@ -73,7 +74,7 @@ const Purchases = () => {
       }
     };
     load();
-  }, []);
+  }, [addPurchase]); // Tambahkan addPurchase ke dependency array jika diperlukan
 
   const suppliers = ['All', ...Array.from(new Set(purchases.map(p => p.supplier).filter(Boolean)))];
 
@@ -94,37 +95,76 @@ const Purchases = () => {
   };
 
   const handleAddItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, { rawMaterialId: rawMaterials[0]?.id || '', quantity: 1, unitCost: 0, total: 0 }]
-    }));
-  };
-
-  const handleRemoveItem = (index: number) => {
-    setFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
-  };
-
-  const handleItemChange = (index: number, field: keyof PurchaseItem, value: string | number) => {
+    // Pastikan ada materialID default
+    const defaultMaterialId = rawMaterials.length > 0 ? rawMaterials[0].id : '';
+    
     setFormData(prev => {
-      const newItems = [...prev.items];
-      const item = { ...newItems[index] };
-      if (field === 'rawMaterialId') item.rawMaterialId = String(value);
-      else if (field === 'quantity' || field === 'unitCost') {
-        const num = parseFloat(String(value)) || 0;
-        item[field] = num;
-        item.total = (item.quantity || 0) * (item.unitCost || 0);
-      }
-      newItems[index] = item;
-      return { ...prev, items: newItems };
+        const newItems = [...prev.items, { rawMaterialId: defaultMaterialId, quantity: 1, unitCost: 0, total: 0 }];
+        // Di sini kita TIDAK perlu menghitung total lagi, karena akan dilakukan di handleItemChange berikutnya 
+        // atau jika user langsung klik submit.
+        return { ...prev, items: newItems };
     });
   };
 
-  const calculateTotal = () => formData.items.reduce((sum, item) => sum + (item.total || 0), 0);
+  const handleRemoveItem = (index: number) => {
+    setFormData(prev => {
+        const newItems = prev.items.filter((_, i) => i !== index);
+        const newTotalAmount = newItems.reduce((sum, item) => sum + (item.total || 0), 0);
+        return { 
+            ...prev, 
+            items: newItems,
+            totalAmount: newTotalAmount 
+        };
+    });
+  };
+
+  // --- FUNGSI PERBAIKAN UTAMA DI SINI ---
+  const handleItemChange = (index: number, field: keyof PurchaseItem, value: string | number) => {
+    setFormData(prev => {
+        const newItems = [...prev.items];
+        let item = { ...newItems[index] };
+        
+        let currentQuantity = item.quantity;
+        let currentUnitCost = item.unitCost;
+
+        if (field === 'rawMaterialId') {
+            item.rawMaterialId = String(value);
+        } else if (field === 'quantity' || field === 'unitCost') {
+            const num = parseFloat(String(value)) || 0;
+            
+            // Perbarui nilai item yang spesifik
+            item = { ...item, [field]: num };
+
+            // Ambil nilai yang sudah diperbarui
+            currentQuantity = field === 'quantity' ? num : item.quantity;
+            currentUnitCost = field === 'unitCost' ? num : item.unitCost;
+            
+            // Hitung total item yang diperbarui
+            item.total = currentQuantity * currentUnitCost;
+        }
+        
+        newItems[index] = item;
+
+        // Hitung Ulang Total Jumlah Pembelian dari SEMUA item
+        const newTotalAmount = newItems.reduce((sum, currentItem) => sum + (currentItem.total || 0), 0);
+        
+        // Perbarui state formData, termasuk totalAmount
+        return { 
+            ...prev, 
+            items: newItems,
+            totalAmount: newTotalAmount 
+        };
+    });
+  };
+
+  // Kita bisa hapus fungsi calculateTotal karena sekarang totalAmount ada di state formData
+  // const calculateTotal = () => formData.items.reduce((sum, item) => sum + (item.total || 0), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      // Validasi
       if (!formData.supplier.trim()) throw new Error('Supplier is required');
       if (formData.items.length === 0) throw new Error('At least one item is required');
       for (const item of formData.items) {
@@ -132,6 +172,7 @@ const Purchases = () => {
         if (item.unitCost <= 0) throw new Error('Unit cost must be > 0');
       }
 
+      // Pastikan totalAmount diambil dari state yang sudah diperbarui (formData.totalAmount)
       const payload = {
         date: formData.date,
         supplier: formData.supplier,
@@ -141,7 +182,8 @@ const Purchases = () => {
           unit_cost: it.unitCost,
           total: it.total
         })),
-        totalAmount: calculateTotal(),
+        // GUNAKAN TOTAL AMOUNT DARI STATE (SUDAH DIHITUNG DI handleItemChange)
+        totalAmount: formData.totalAmount, 
         notes: formData.notes || undefined
       };
 
@@ -165,16 +207,18 @@ const Purchases = () => {
           unitCost: Number(it.unit_cost ?? it.unitCost ?? it.cost ?? 0),
           total: Number(it.total ?? it.quantity * (it.unit_cost ?? it.unitCost ?? 0)),
         })),
-        totalAmount: Number(d.totalAmount ?? d.total ?? 0),
+        totalAmount: Number(d.totalAmount ?? d.total ?? 0), // Memuat totalAmount yang benar
         notes: d.notes ?? d.comment ?? '',
       })));
     } catch (error: any) {
-      toast.error(error?.message ?? 'An error occurred');
+      // Tangkap error dari validasi atau API
+      toast.error(error?.message ?? 'An error occurred during submission');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ... (handleSort dan getSortedPurchases tidak perlu diubah)
   const handleSort = (field: 'date' | 'supplier' | 'totalAmount') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -208,6 +252,7 @@ const Purchases = () => {
         return 0;
       });
   };
+
 
   return (
     <div className="space-y-6">
@@ -305,7 +350,7 @@ const Purchases = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-              {loading ? (
+              {loading || inventoryLoading ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-4 text-center">
                     <Loader2 className="h-8 w-8 mx-auto text-blue-500 animate-spin" />
@@ -503,7 +548,7 @@ const Purchases = () => {
                       
                       {formData.items.length > 0 && (
                         <div className="mt-2 text-right text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Total: {formatCurrency(calculateTotal())}
+                          Total: {formatCurrency(formData.totalAmount)}
                         </div>
                       )}
                     </div>
