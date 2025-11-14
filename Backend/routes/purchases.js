@@ -21,55 +21,60 @@ router.get("/", async (req, res) => {
 
 // Record a purchase
 router.post("/", async (req, res) => {
-  const conn = await db.getConnection();
-  try {
-    // PERBAIKAN 1A: Menerima totalAmount (camelCase) dari frontend
-    const { date, supplier, totalAmount, notes, items } = req.body; 
-    
-    // Pastikan totalAmount adalah angka dan tidak null
-    const finalTotalAmount = Number(totalAmount) || 0;
+  const conn = await db.getConnection();
+  try {
+    const { date, supplier, notes, items } = req.body;
 
-    await conn.beginTransaction();
+    await conn.beginTransaction();
 
-    const [result] = await conn.query(
-      "INSERT INTO purchases (date, supplier, total_amount, notes) VALUES (?, ?, ?, ?)",
-      [date, supplier, finalTotalAmount, notes] // Menggunakan finalTotalAmount
-    );
-    const purchaseId = result.insertId;
+    // Calculate total purchase cost
+    let purchaseTotal = 0;
 
-    for (const item of items) {
-      // PERBAIKAN 1B: Menggunakan nama field snake_case yang dikirim dari frontend
-      // Item yang dikirim: raw_material_id, unit_cost
-      const finalUnitCost = Number(item.unit_cost) || 0; 
-      const finalTotal = Number(item.total) || 0; 
+    const [result] = await conn.query(
+      "INSERT INTO purchases (date, supplier, total_amount, notes) VALUES (?, ?, 0, ?)",
+      [date, supplier, notes]
+    );
+    const purchaseId = result.insertId;
 
-      await conn.query(
-        "INSERT INTO purchase_items (purchase_id, raw_material_id, quantity, unit_cost, total) VALUES (?, ?, ?, ?, ?)",
-        [
-          purchaseId, 
-          item.raw_material_id, // Gunakan raw_material_id dari payload frontend
-          item.quantity, 
-          finalUnitCost,        // Gunakan unit_cost dari payload frontend
-          finalTotal
-        ]
-      );
-      
-      // increase stock
-      await conn.query(
-        "UPDATE raw_materials SET stock = stock + ? WHERE id=?",
-        [item.quantity, item.raw_material_id] // Gunakan raw_material_id dari payload frontend
-      );
-    }
+    for (const item of items) {
+      // Accept both camelCase and snake_case
+      const rawMaterialId =
+        item.raw_material_id || item.rawMaterialId || item.id;
 
-    await conn.commit();
-    res.status(201).json({ message: "Purchase recorded successfully" });
-  } catch (err) {
-    await conn.rollback();
-    console.error("Error in purchase POST:", err);
-    res.status(500).json({ message: "Error recording purchase" });
-  } finally {
-    conn.release();
-  }
+      const quantity = Number(item.quantity) || 0;
+      const unitCost = Number(item.unit_cost || item.unitCost) || 0;
+      const itemTotal = quantity * unitCost;
+
+      purchaseTotal += itemTotal;
+
+      await conn.query(
+        "INSERT INTO purchase_items (purchase_id, raw_material_id, quantity, unit_cost, total) VALUES (?, ?, ?, ?, ?)",
+        [purchaseId, rawMaterialId, quantity, unitCost, itemTotal]
+      );
+
+      await conn.query(
+        "UPDATE raw_materials SET stock = stock + ? WHERE id = ?",
+        [quantity, rawMaterialId]
+      );
+    }
+
+    // Update total purchase amount
+    await conn.query(
+      "UPDATE purchases SET total_amount = ? WHERE id = ?",
+      [purchaseTotal, purchaseId]
+    );
+
+    await conn.commit();
+    res.status(201).json({ message: "Purchase recorded successfully" });
+
+  } catch (err) {
+    await conn.rollback();
+    console.error("Error in purchase POST:", err);
+    res.status(500).json({ message: "Error recording purchase" });
+  } finally {
+    conn.release();
+  }
 });
+
 
 export default router;

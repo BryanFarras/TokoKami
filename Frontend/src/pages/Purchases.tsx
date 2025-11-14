@@ -63,7 +63,12 @@ const Purchases = () => {
             total: Number(it.total ?? it.quantity * (it.unit_cost ?? it.unitCost ?? 0)),
           })),
           // Pastikan mengambil totalAmount atau total
-          totalAmount: Number(d.totalAmount ?? d.total ?? 0),
+          totalAmount: Number(
+            d.total_amount ??
+            d.totalAmount ??
+            d.total ??
+            0
+          ),
           notes: d.notes ?? d.comment ?? '',
         })));
       } catch (err) {
@@ -207,7 +212,12 @@ const Purchases = () => {
           unitCost: Number(it.unit_cost ?? it.unitCost ?? it.cost ?? 0),
           total: Number(it.total ?? it.quantity * (it.unit_cost ?? it.unitCost ?? 0)),
         })),
-        totalAmount: Number(d.totalAmount ?? d.total ?? 0), // Memuat totalAmount yang benar
+        totalAmount: Number(
+          d.total_amount ??
+          d.totalAmount ??
+          d.total ??
+          0
+        ), // Memuat totalAmount yang benar
         notes: d.notes ?? d.comment ?? '',
       })));
     } catch (error: any) {
