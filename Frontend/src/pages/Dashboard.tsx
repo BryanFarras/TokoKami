@@ -4,6 +4,7 @@ import { useTransactions } from '../context/TransactionContext';
 import { useInventory } from '../context/InventoryContext';
 import { AlertTriangle, TrendingUp, ShoppingCart, Package, DollarSign, Calendar, ArrowUpRight, Box } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatCurrency } from "../utils/currency";
 
 const Dashboard = () => {
   const { products } = useProducts();
@@ -29,60 +30,68 @@ const Dashboard = () => {
     weekAgo.setDate(weekAgo.getDate() - 7);
     const monthAgo = new Date(today);
     monthAgo.setMonth(monthAgo.getMonth() - 1);
-    
-    // Filter transactions based on time range
-    const filteredTransactions = transactions.filter(transaction => {
-      const transactionDate = new Date(transaction.date);
-      if (timeRange === 'today') {
+
+    // Filter transactions based on time range (use createdAt/date safely)
+    const filteredTransactions = transactions.filter((transaction) => {
+      const dStr = transaction.date ?? transaction.createdAt ?? transaction.created_at;
+      const transactionDate = new Date(dStr);
+      if (isNaN(transactionDate.getTime())) return false;
+      if (timeRange === "today") {
         return transactionDate >= today;
-      } else if (timeRange === 'week') {
+      } else if (timeRange === "week") {
         return transactionDate >= weekAgo;
       } else {
         return transactionDate >= monthAgo;
       }
     });
-    
-    // Calculate stats
-    const totalSales = filteredTransactions.reduce((sum, transaction) => sum + transaction.total, 0);
-    const totalProfit = filteredTransactions.reduce((sum, transaction) => sum + transaction.profit, 0);
+
+    // Calculate stats (coerce to Number)
+    const totalSales = filteredTransactions.reduce(
+      (sum, transaction) => sum + (Number(transaction.total) || 0),
+      0
+    );
+    const totalProfit = filteredTransactions.reduce(
+      (sum, transaction) => sum + (Number(transaction.profit) || 0),
+      0
+    );
     const orderCount = filteredTransactions.length;
-    
+
     setStats({
-      sales: totalSales,
-      profit: totalProfit,
+      sales: Number(totalSales) || 0,
+      profit: Number(totalProfit) || 0,
       orders: orderCount,
-      averageOrder: orderCount > 0 ? totalSales / orderCount : 0
+      averageOrder: orderCount > 0 ? Number(totalSales) / orderCount : 0,
     });
-    
+
     // Find low stock products (less than 10 items)
     const lowStock = products
-      .filter(product => product.stock < 10)
-      .sort((a, b) => a.stock - b.stock)
+      .filter((product) => Number(product.stock || 0) < 10)
+      .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0))
       .slice(0, 5);
     setLowStockProducts(lowStock);
-    
-    // Calculate top selling products
+
+    // Calculate top selling products (coerce item fields)
     const productSales: Record<string, { id: string; name: string; quantity: number; total: number }> = {};
-    
-    filteredTransactions.forEach(transaction => {
-      transaction.items.forEach(item => {
-        if (!productSales[item.productId]) {
-          productSales[item.productId] = {
-            id: item.productId,
-            name: item.productName,
-            quantity: 0,
-            total: 0
-          };
+
+    filteredTransactions.forEach((transaction) => {
+      (transaction.items || []).forEach((item) => {
+        const pid = item.productId ?? item.product_id ?? String(item.id ?? "unknown");
+        const pname = item.productName ?? item.product_name ?? item.name ?? "Unknown";
+        const qty = Number(item.quantity) || 0;
+        const tot = Number(item.totalPrice ?? item.total ?? 0) || 0;
+
+        if (!productSales[pid]) {
+          productSales[pid] = { id: pid, name: pname, quantity: 0, total: 0 };
         }
-        productSales[item.productId].quantity += item.quantity;
-        productSales[item.productId].total += item.totalPrice;
+        productSales[pid].quantity += qty;
+        productSales[pid].total += tot;
       });
     });
-    
+
     const topSellingProducts = Object.values(productSales)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5);
-    
+
     setTopProducts(topSellingProducts);
   }, [timeRange, transactions, products]);
 
@@ -130,7 +139,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Total Sales</p>
-              <h3 className="text-2xl font-bold mt-1">${stats.sales.toFixed(2)}</h3>
+              <h3 className="text-2xl font-bold mt-1">{formatCurrency(stats.sales)}</h3>
             </div>
             <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center">
               <DollarSign className="h-6 w-6" />
@@ -147,7 +156,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Profit</p>
-              <h3 className="text-2xl font-bold mt-1">${stats.profit.toFixed(2)}</h3>
+              <h3 className="text-2xl font-bold mt-1">{formatCurrency(stats.profit)}</h3>
             </div>
             <div className="h-12 w-12 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center">
               <TrendingUp className="h-6 w-6" />
@@ -181,7 +190,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Avg. Order</p>
-              <h3 className="text-2xl font-bold mt-1">${stats.averageOrder.toFixed(2)}</h3>
+              <h3 className="text-2xl font-bold mt-1">{formatCurrency(stats.averageOrder)}</h3>
             </div>
             <div className="h-12 w-12 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center">
               <Calendar className="h-6 w-6" />
@@ -229,7 +238,7 @@ const Dashboard = () => {
                           {product.quantity}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
-                          ${product.total.toFixed(2)}
+                          {formatCurrency(product.total)}
                         </td>
                       </tr>
                     ))}

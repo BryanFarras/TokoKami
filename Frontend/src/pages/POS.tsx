@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useProducts, Product } from '../context/ProductContext';
-import { useTransactions, CartItem } from '../context/TransactionContext';
+import { useTransactions } from '../context/TransactionContext';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api';
 import { Search, ShoppingCart, Trash2, Plus, Minus, X, CreditCard, DollarSign, Loader2, Receipt } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatCurrency } from "../utils/currency";
 
 const POS = () => {
   const { products, loading: productsLoading } = useProducts();
-  const { cart, addToCart, removeFromCart, updateCartItemQuantity, cartSubtotal, checkout } = useTransactions();
+  const txCtx = (() => { try { return useTransactions(); } catch { return null; } })();
   const { user } = useAuth();
-  
+
+  // Local cart state (keeps UI identical and prevents crashes if TransactionContext shape differs)
+  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
@@ -23,15 +27,29 @@ const POS = () => {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState<any>(null);
 
-  // Get unique categories
-  const categories = ['All', ...new Set(products.map(product => product.category))];
-  
-  // Filter products based on search and category
+  // helpers
+  const categories = useMemo(() => ['All', ...Array.from(new Set(products.map(product => product.category)))], [products]);
+
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === null || selectedCategory === 'All' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  const addToCart = (product: Product, qty = 1) => {
+    setCart(prev => {
+      const found = prev.find(i => i.product.id === product.id);
+      if (found) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i);
+      return [...prev, { product, quantity: qty }];
+    });
+  };
+
+  const removeFromCart = (productId: string) => setCart(prev => prev.filter(i => i.product.id !== productId));
+  const updateCartItemQuantity = (productId: string, quantity: number) => {
+    setCart(prev => prev.map(i => i.product.id === productId ? { ...i, quantity: Math.max(0, quantity) } : i).filter(i => i.quantity > 0));
+  };
+
+  const cartSubtotal = cart.reduce((s, it) => s + (it.product.price * it.quantity), 0);
 
   const handleAddToCart = (product: Product) => {
     addToCart(product, 1);
@@ -39,64 +57,62 @@ const POS = () => {
   };
 
   const handleCheckout = async () => {
-    if (cart.length === 0) {
-      toast.error('Cart is empty');
-      return;
-    }
-
+    if (cart.length === 0) { toast.error('Cart is empty'); return; }
     setIsProcessing(true);
     try {
-      const transaction = await checkout({
+      // build payload the backend expects
+      const payload = {
+        type: 'sale',
+        items: cart.map(i => ({
+          productId: i.product.id,
+          productName: i.product.name,
+          unitPrice: i.product.price,
+          quantity: i.quantity,
+          totalPrice: i.product.price * i.quantity,
+        })),
+        subtotal: cartSubtotal,
         discount,
         tax,
-        paymentMethod,
-        cashierName: user?.name || 'Unknown',
-        customerName: customerName || undefined,
+        total: cartSubtotal + tax - discount,
+        payment_method: paymentMethod,
+        cashier_name: user?.name || 'Unknown',
+        customer_name: customerName || undefined,
         notes: notes || undefined,
-      });
-      
-      setCurrentTransaction(transaction);
+      };
+
+      if (txCtx && typeof txCtx.addTransaction === 'function') {
+        const transaction = await txCtx.addTransaction(payload as any);
+        setCurrentTransaction(transaction ?? payload);
+      } else {
+        const resp = await api<any>('/transactions/checkout', { method: 'POST', body: payload });
+        setCurrentTransaction(resp ?? payload);
+      }
+
       setCheckoutModalOpen(false);
       setReceiptModalOpen(true);
-      resetCheckoutForm();
+      setCart([]);
+      setDiscount(0); setTax(0); setPaymentMethod('cash'); setCustomerName(''); setNotes(''); setCashAmount('');
       toast.success('Transaction completed successfully');
-    } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error('Failed to process transaction');
-      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to process transaction');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const resetCheckoutForm = () => {
-    setDiscount(0);
-    setTax(0);
-    setPaymentMethod('cash');
-    setCustomerName('');
-    setNotes('');
-    setCashAmount('');
-  };
-
   const calculateChange = () => {
     if (!cashAmount) return 0;
-    const cashValue = parseFloat(cashAmount);
+    const cashValue = parseFloat(cashAmount) || 0;
     const totalWithTaxAndDiscount = cartSubtotal + tax - discount;
     return cashValue > totalWithTaxAndDiscount ? cashValue - totalWithTaxAndDiscount : 0;
   };
 
   const printReceipt = () => {
-    // In a real application, this would handle receipt printing
-    // For this demo, we'll just close the modal
     toast.success('Receipt printed successfully');
     setReceiptModalOpen(false);
   };
 
   const exportReceipt = () => {
-    // In a real application, this would export the receipt
-    // For this demo, we'll just close the modal
     toast.success('Receipt exported successfully');
     setReceiptModalOpen(false);
   };
@@ -163,7 +179,7 @@ const POS = () => {
                   <div className="p-4">
                     <h3 className="font-medium text-gray-900 dark:text-white">{product.name}</h3>
                     <div className="flex items-center justify-between mt-2">
-                      <p className="text-lg font-bold text-blue-600 dark:text-blue-400">${product.price.toFixed(2)}</p>
+                      <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(product.price)}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Stock: {product.stock}</p>
                     </div>
                   </div>
@@ -201,7 +217,7 @@ const POS = () => {
                   <div key={item.product.id} className="flex border-b border-gray-200 dark:border-gray-700 pb-4">
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900 dark:text-white">{item.product.name}</h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">${item.product.price.toFixed(2)} each</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{formatCurrency(item.product.price)} each</p>
                       
                       <div className="mt-2 flex items-center">
                         <button
@@ -220,7 +236,7 @@ const POS = () => {
                         
                         <div className="ml-auto flex items-center">
                           <span className="font-medium text-gray-900 dark:text-white">
-                            ${(item.product.price * item.quantity).toFixed(2)}
+                            {formatCurrency(item.product.price * item.quantity)}
                           </span>
                           <button
                             onClick={() => removeFromCart(item.product.id)}
@@ -246,7 +262,7 @@ const POS = () => {
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex justify-between text-sm mb-2">
               <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-              <span className="font-medium text-gray-900 dark:text-white">${cartSubtotal.toFixed(2)}</span>
+              <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(cartSubtotal)}</span>
             </div>
             <div className="text-right">
               <span className="text-gray-500 dark:text-gray-400 text-xs">
@@ -283,7 +299,7 @@ const POS = () => {
                             {item.quantity} x {item.product.name}
                           </span>
                           <span className="font-medium text-gray-900 dark:text-white">
-                            ${(item.product.price * item.quantity).toFixed(2)}
+                            {formatCurrency(item.product.price * item.quantity)}
                           </span>
                         </div>
                       ))}
@@ -291,7 +307,7 @@ const POS = () => {
                     <div className="border-t border-gray-200 dark:border-gray-600 mt-3 pt-3">
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-300">Subtotal</span>
-                        <span className="font-medium text-gray-900 dark:text-white">${cartSubtotal.toFixed(2)}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(cartSubtotal)}</span>
                       </div>
                     </div>
                   </div>
@@ -300,7 +316,7 @@ const POS = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="discount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Discount ($)
+                      Discount (IDR)
                     </label>
                     <input
                       type="number"
@@ -314,7 +330,7 @@ const POS = () => {
                   </div>
                   <div>
                     <label htmlFor="tax" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Tax ($)
+                      Tax (IDR)
                     </label>
                     <input
                       type="number"
@@ -388,7 +404,7 @@ const POS = () => {
                     {parseFloat(cashAmount) > 0 && (
                       <div className="mt-2 text-right">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Change: ${calculateChange().toFixed(2)}
+                          Change: {formatCurrency(calculateChange())}
                         </span>
                       </div>
                     )}
@@ -425,7 +441,7 @@ const POS = () => {
                   <div className="flex justify-between text-lg font-bold mb-4">
                     <span className="text-gray-900 dark:text-white">Total</span>
                     <span className="text-blue-600 dark:text-blue-400">
-                      ${(cartSubtotal + tax - discount).toFixed(2)}
+                      {(cartSubtotal + tax - discount).toFixed(2)}
                     </span>
                   </div>
                   
@@ -489,8 +505,8 @@ const POS = () => {
                         <tr key={index} className="text-gray-900 dark:text-white">
                           <td className="py-1">{item.productName}</td>
                           <td className="text-center py-1">{item.quantity}</td>
-                          <td className="text-right py-1">${item.unitPrice.toFixed(2)}</td>
-                          <td className="text-right py-1">${item.totalPrice.toFixed(2)}</td>
+                          <td className="text-right py-1">{formatCurrency(item.unitPrice)}</td>
+                          <td className="text-right py-1">{formatCurrency(item.totalPrice)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -500,23 +516,23 @@ const POS = () => {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                    <span className="text-gray-900 dark:text-white">${currentTransaction.subtotal.toFixed(2)}</span>
+                    <span className="text-gray-900 dark:text-white">{formatCurrency(currentTransaction.subtotal)}</span>
                   </div>
                   {currentTransaction.discount > 0 && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Discount</span>
-                      <span className="text-gray-900 dark:text-white">-${currentTransaction.discount.toFixed(2)}</span>
+                      <span className="text-gray-900 dark:text-white">-{formatCurrency(currentTransaction.discount)}</span>
                     </div>
                   )}
                   {currentTransaction.tax > 0 && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Tax</span>
-                      <span className="text-gray-900 dark:text-white">${currentTransaction.tax.toFixed(2)}</span>
+                      <span className="text-gray-900 dark:text-white">{formatCurrency(currentTransaction.tax)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-200 dark:border-gray-700">
                     <span className="text-gray-900 dark:text-white">Total</span>
-                    <span className="text-gray-900 dark:text-white">${currentTransaction.total.toFixed(2)}</span>
+                    <span className="text-gray-900 dark:text-white">{formatCurrency(currentTransaction.total)}</span>
                   </div>
                   <div className="flex justify-between pt-2">
                     <span className="text-gray-600 dark:text-gray-400">Payment Method</span>

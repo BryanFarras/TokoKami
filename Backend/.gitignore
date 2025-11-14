@@ -1,0 +1,78 @@
+# Node modules and lock/debug logs
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files (secrets)
+.env
+.env.* 
+.env.local
+.env.production
+.env.test
+.env.*.local
+.envrc
+
+# Logs
+logs/
+*.log
+*.pid
+*.seed
+*.pid.lock
+pids/
+*.log.*
+
+# Build / coverage
+dist/
+build/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+out/
+.next/
+.nuxt/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Database files
+*.sqlite
+*.db
+
+# Certificates — ignore private keys and sensitive cert formats, but allow a public ca.pem if you keep it
+*.key
+*.pem
+*.crt
+*.csr
+
+# Dependency stores / caches
+.pnpm-store/
+.cache/
+.tmp/
+.temp/
+*.tgz
+
+# Docker
+docker-compose.override.yml
+Dockerfile*
+docker-compose*.yml
+
+# Test artifacts
+.vscode-test/
+*.lcov
+coverage/
+
+# Misc
+*.seed
+*.pid.lock
+*.env.*.local
+*.local
+*.backup
+*.swp
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+# End of file

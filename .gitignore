@@ -1,0 +1,21 @@
+# Exclude Node.js dependencies
+/TokoKami/Frontend/node_modules/
+/TokoKami/Frontend/package-lock.json
+/TokoKami/Backend/node_modules/
+
+# Exclude build directories (if you have them)
+/TokoKami/Frontend/dist/
+/TokoKami/Frontend/build/
+/TokoKami/Backend/dist/
+
+# Exclude IDE settings (VS Code, etc.)
+.vscode/
+.idea/
+
+# Exclude system files
+.DS_Store
+Thumbs.db
+
+# Exclude files yang sering disalahartikan sebagai bagian dari repo
+# Jika ada file/folder di root C:\Users\Muhammad Hilmi yang terpush, tambahkan di sini (misal: *.exe, folder_pribadi_lain/)
+# Jika root repo terlalu tinggi, ini bisa diabaikan dengan mengkloning ulang, tapi kita coba bersihkan dulu

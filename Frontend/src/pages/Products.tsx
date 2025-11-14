@@ -6,6 +6,7 @@ import {
   ArrowUp, ArrowDown, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatCurrency } from "../utils/currency";
 
 type SortField = 'name' | 'price' | 'stock' | 'category';
 type SortDirection = 'asc' | 'desc';
@@ -335,7 +336,7 @@ const Products = () => {
                             {product.name}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
-                            Cost: ${product.costPrice.toFixed(2)}
+                            Cost: {formatCurrency(product.costPrice)}
                           </div>
                         </div>
                       </div>
@@ -344,9 +345,9 @@ const Products = () => {
                       <div className="text-sm text-gray-900 dark:text-white">{product.category}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">${product.price.toFixed(2)}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(product.price)}</div>
                       <div className="text-sm text-green-600 dark:text-green-400">
-                        +${(product.price - product.costPrice).toFixed(2)} profit
+                        {formatCurrency(product.price - product.costPrice)} profit
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
