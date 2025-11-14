@@ -2,26 +2,26 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { api } from "../api";
 
 export interface RawMaterial {
-  id: string;
-  name: string;
-  unit?: string;
-  stock: number;
-  price?: number;
-  unitCost?: number; // Harga beli per unit (digunakan untuk perhitungan inventaris)
-  supplier?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  [key: string]: any;
+  id: string;
+  name: string;
+  unit?: string;
+  stock: number;
+  price?: number;
+  unitCost?: number; // Harga beli per unit (digunakan untuk perhitungan inventaris)
+  supplier?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: any;
 }
 
 interface InventoryContextType {
-  rawMaterials: RawMaterial[];
-  loading: boolean;
-  error: string | null;
-  fetchRawMaterials: () => Promise<void>;
-  addRawMaterial: (m: Omit<RawMaterial, "id">) => Promise<void>;
-  updateRawMaterial: (id: string, m: Partial<RawMaterial>) => Promise<void>;
-  deleteRawMaterial: (id: string) => Promise<void>;
+  rawMaterials: RawMaterial[];
+  loading: boolean;
+  error: string | null;
+  fetchRawMaterials: () => Promise<void>;
+  addRawMaterial: (m: Omit<RawMaterial, "id">) => Promise<void>;
+  updateRawMaterial: (id: string, m: Partial<RawMaterial>) => Promise<void>;
+  deleteRawMaterial: (id: string) => Promise<void>;
 }
 
 export const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
