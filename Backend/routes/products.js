@@ -18,11 +18,13 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const { name, category, price, cost_price, stock, image } = req.body;
-    await db.query(
+    const [result] = await db.query(
       "INSERT INTO products (name, category, price, cost_price, stock, image) VALUES (?, ?, ?, ?, ?, ?)",
       [name, category, price, cost_price, stock, image]
     );
-    res.status(201).json({ message: "Product added successfully" });
+    const insertId = result.insertId;
+    const [rows] = await db.query("SELECT * FROM products WHERE id = ?", [insertId]);
+    res.status(201).json(rows[0]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error adding product" });
@@ -38,7 +40,9 @@ router.put("/:id", async (req, res) => {
       "UPDATE products SET name=?, category=?, price=?, cost_price=?, stock=?, image=? WHERE id=?",
       [name, category, price, cost_price, stock, image, id]
     );
-    res.json({ message: "Product updated successfully" });
+    const [rows] = await db.query("SELECT * FROM products WHERE id = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Product not found" });
+    res.json(rows[0]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error updating product" });
@@ -49,8 +53,12 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    // Fetch the product first so we can return it after deletion
+    const [rows] = await db.query("SELECT * FROM products WHERE id = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Product not found" });
+    const product = rows[0];
     await db.query("DELETE FROM products WHERE id=?", [id]);
-    res.json({ message: "Product deleted successfully" });
+    res.json(product);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error deleting product" });
