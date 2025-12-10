@@ -37,7 +37,23 @@ router.post("/checkout", async (req, res) => {
       const product = rows[0];
       subtotal += product.price * item.quantity;
       profit += (product.price - product.cost_price) * item.quantity;
+      
+      // ✅ Kurangi stock produk
       await conn.query("UPDATE products SET stock = stock - ? WHERE id=?", [item.quantity, item.productId]);
+      
+      // ✅ BARU: Kurangi raw materials berdasarkan resep (product_ingredients)
+      const [ingredients] = await conn.query(
+        "SELECT raw_material_id, amount FROM product_ingredients WHERE product_id=?",
+        [item.productId]
+      );
+      
+      for (const ingredient of ingredients) {
+        const totalAmountNeeded = ingredient.amount * item.quantity;
+        await conn.query(
+          "UPDATE raw_materials SET stock = stock - ? WHERE id=?",
+          [totalAmountNeeded, ingredient.raw_material_id]
+        );
+      }
     }
 
     const total = subtotal - discount + tax;
