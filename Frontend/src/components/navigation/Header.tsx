@@ -9,7 +9,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -47,11 +47,6 @@ const Header: React.FC<HeaderProps> = ({ children }) => {
               {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
             
-            {/* Notifications */}
-            <button className="p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-gray-800 transition-colors relative">
-              <BellRing className="h-5 w-5" /> 
-              <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-gray-900 animate-pulse"></span>
-            </button>
             
             {/* Separator */}
             <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-2 hidden sm:block"></div>
@@ -89,7 +84,7 @@ const Header: React.FC<HeaderProps> = ({ children }) => {
                       Settings
                     </button>
                     <button
-                      onClick={() => {/* Logic Logout */}}
+                      onClick={logout}
                       className="flex w-full items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
                       <LogOut className="mr-3 h-4 w-4" />

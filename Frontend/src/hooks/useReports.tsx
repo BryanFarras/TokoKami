@@ -31,10 +31,12 @@ export const useReports = (dateRange: 'week' | 'month' | 'year') => {
     const { products } = useContext(ProductContext) || { products: [] };
     
     // Mengambil rawMaterials dari InventoryContext
-    const { rawMaterials } = useContext(InventoryContext) || { rawMaterials: [] };
+    const { rawMaterials, purchases } = useContext(InventoryContext) || { rawMaterials: [], purchases: [] };
 
     useEffect(() => {
         if (!transactions || !products || !rawMaterials) return;
+        // If purchases is required for expenses, allow empty array fallback
+        const safePurchases = Array.isArray(purchases) ? purchases : [];
 
         // --- 1. Tentukan Batas Waktu Berdasarkan dateRange ---
         const now = new Date();
@@ -54,6 +56,13 @@ export const useReports = (dateRange: 'week' | 'month' | 'year') => {
             const transactionDate = new Date(t.date || t.createdAt || t.created_at);
             if (isNaN(transactionDate.getTime())) return false;
             return transactionDate >= startDate; 
+        });
+
+        // Also filter purchases by date range
+        const filteredPurchases = (Array.isArray(purchases) ? purchases : []).filter((p: any) => {
+            const d = new Date(p.date || p.created_at || p.createdAt || '');
+            if (isNaN(d.getTime())) return false;
+            return d >= startDate;
         });
 
         // --- 3. Hitung Top Products ---
@@ -154,14 +163,24 @@ export const useReports = (dateRange: 'week' | 'month' | 'year') => {
 
         // --- 7. Hitung Financials ---
         const revenue = totalSales;
-        const expenses = filteredTransactions 
-            .filter(t => t.type === 'expense')
-            .reduce((sum, t) => sum + (Number(t.total) || 0), 0);
-        
+
+        // Sum purchases totalAmount as expenses
+        const expensesFromPurchases = filteredPurchases.reduce(
+            (sum: number, p: any) => sum + (Number(p.totalAmount ?? p.total ?? 0) || 0),
+            0
+        );
+
+        const expensesFromTransactions = filteredTransactions
+            .filter((t: any) => t.type === 'expense')
+            .reduce((sum: number, t: any) => sum + (Number(t.total) || 0), 0);
+
+        // Prefer purchases; if none, include transaction expenses
+        const expenses = expensesFromPurchases > 0 ? expensesFromPurchases : expensesFromTransactions;
+
         const recentTransactions = filteredTransactions
             .sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime())
             .slice(0, 3)
-            .map(t => ({ 
+            .map(t => ({
                 id: t.id,
                 date: t.date || t.createdAt,
                 type: t.type || 'income',
@@ -174,8 +193,7 @@ export const useReports = (dateRange: 'week' | 'month' | 'year') => {
             profit: revenue - expenses,
             recentTransactions,
         });
-
-    }, [transactions, products, rawMaterials, dateRange]);
+    }, [transactions, products, rawMaterials, purchases, dateRange]);
 
     return {
         salesData,

@@ -14,14 +14,27 @@ export interface RawMaterial {
   [key: string]: any;
 }
 
+interface Purchase {
+  id?: string;
+  date: string;
+  supplier: string;
+  items: any[];
+  totalAmount: number;
+  notes?: string;
+  [key: string]: any;
+}
+
 interface InventoryContextType {
   rawMaterials: RawMaterial[];
+  purchases: Purchase[]; // ADD
   loading: boolean;
   error: string | null;
   fetchRawMaterials: () => Promise<void>;
   addRawMaterial: (m: Omit<RawMaterial, "id">) => Promise<void>;
   updateRawMaterial: (id: string, m: Partial<RawMaterial>) => Promise<void>;
   deleteRawMaterial: (id: string) => Promise<void>;
+  fetchPurchases?: () => Promise<void>; // optional
+  addPurchase?: (p: Purchase) => Promise<void>; // optional
 }
 
 export const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -34,6 +47,7 @@ export const useInventory = () => {
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]); // ADD
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,12 +152,61 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const fetchPurchases = async () => {
+    try {
+      setLoading(true);
+      const data = await api<any[]>('/purchases');
+      setPurchases((data || []).map(d => ({
+        id: d.id,
+        date: d.date ?? d.created_at ?? new Date().toISOString(),
+        supplier: d.supplier ?? '',
+        items: Array.isArray(d.items || d.line_items) ? (d.items || d.line_items) : [],
+        totalAmount: Number(d.total_amount ?? d.totalAmount ?? d.total ?? 0),
+        notes: d.notes ?? d.comment ?? '',
+        ...d,
+      })));
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load purchases');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addPurchase = async (p: Purchase) => {
+    try {
+      setLoading(true);
+      await api('/purchases', { method: 'POST', body: p });
+      await fetchPurchases();
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to add purchase');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchRawMaterials();
+    fetchPurchases(); // ADD
   }, []);
 
   return (
-    <InventoryContext.Provider value={{ rawMaterials, loading, error, fetchRawMaterials, addRawMaterial, updateRawMaterial, deleteRawMaterial }}>
+    <InventoryContext.Provider value={{
+      rawMaterials,
+      purchases, // ADD
+      loading,
+      error,
+      fetchRawMaterials,
+      addRawMaterial,
+      updateRawMaterial,
+      deleteRawMaterial,
+      fetchPurchases, // optional
+      addPurchase,    // optional
+    }}>
       {children}
     </InventoryContext.Provider>
   );
