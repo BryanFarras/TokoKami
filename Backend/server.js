@@ -17,8 +17,8 @@ app.get("/test-db", async (req, res) => {
     await db.query("SELECT 1");
     res.json({ message: "Database connected!" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "DB connection failed" });
+    console.error("Database test failed:", err.message);
+    res.status(500).json({ message: "DB connection failed", error: err.message });
   }
 });
 
@@ -29,6 +29,24 @@ app.use("/purchases", purchasesRoutes);
 app.use("/transactions", transactionsRoutes);
 app.use("/auth", authRoutes);
 
-app.listen(process.env.PORT || 4000, () =>
-    console.log(`Server running on port ${process.env.PORT || 4000}`)
-);
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error("Error:", err);
+  res.status(500).json({ message: "Internal server error", error: err.message });
+});
+
+const PORT = process.env.PORT || 4000;
+
+// Test database connection before starting server
+db.query("SELECT 1")
+  .then(() => {
+    console.log("✓ Database connection successful");
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("✗ Database connection failed:", err.message);
+    console.error("Please check your database credentials and network connection.");
+    process.exit(1);
+  });
