@@ -2,35 +2,22 @@ import express from "express";
 import { db } from "../db.js";
 const router = express.Router();
 
-<<<<<<< HEAD
-=======
 // Get all transactions
->>>>>>> cfcf8846cfc95db63deb847b9495687bfb90927e
 router.get("/", async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM transactions ORDER BY date DESC");
     res.json(rows);
   } catch (err) {
-<<<<<<< HEAD
     console.error("Error fetching transactions:", err);
     res.status(500).json({ message: "Error fetching transactions", error: err.message });
   }
 });
 
+// Checkout (create sale)
 router.post("/checkout", async (req, res) => {
   let conn;
   try {
     conn = await db.getConnection();
-=======
-    res.status(500).json({ message: "Error fetching transactions" });
-  }
-});
-
-// Checkout (create sale)
-router.post("/checkout", async (req, res) => {
-  const conn = await db.getConnection();
-  try {
->>>>>>> cfcf8846cfc95db63deb847b9495687bfb90927e
     const {
       discount,
       tax,
@@ -41,7 +28,6 @@ router.post("/checkout", async (req, res) => {
       items
     } = req.body;
 
-<<<<<<< HEAD
     // Validation
     if (!items || items.length === 0) {
       return res.status(400).json({ message: "Items cannot be empty" });
@@ -50,14 +36,11 @@ router.post("/checkout", async (req, res) => {
       return res.status(400).json({ message: "Payment method and cashier name are required" });
     }
 
-=======
->>>>>>> cfcf8846cfc95db63deb847b9495687bfb90927e
     await conn.beginTransaction();
 
     let subtotal = 0;
     let profit = 0;
 
-<<<<<<< HEAD
     // Validate and process items
     for (const item of items) {
       const [rows] = await conn.query("SELECT * FROM products WHERE id=?", [item.productId]);
@@ -96,22 +79,6 @@ router.post("/checkout", async (req, res) => {
     const [tx] = await conn.query(
       "INSERT INTO transactions (date, subtotal, discount, tax, total, profit, payment_method, cashier_name, customer_name, notes) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [subtotal, discount || 0, tax || 0, total, profit, payment_method, cashier_name, customer_name || null, notes || null]
-=======
-    // calculate totals and get product data
-    for (const item of items) {
-      const [rows] = await conn.query("SELECT * FROM products WHERE id=?", [item.productId]);
-      const product = rows[0];
-      subtotal += product.price * item.quantity;
-      profit += (product.price - product.cost_price) * item.quantity;
-      await conn.query("UPDATE products SET stock = stock - ? WHERE id=?", [item.quantity, item.productId]);
-    }
-
-    const total = subtotal - discount + tax;
-
-    const [tx] = await conn.query(
-      "INSERT INTO transactions (date, subtotal, discount, tax, total, profit, payment_method, cashier_name, customer_name, notes) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [subtotal, discount, tax, total, profit, payment_method, cashier_name, customer_name, notes]
->>>>>>> cfcf8846cfc95db63deb847b9495687bfb90927e
     );
 
     const transactionId = tx.insertId;
@@ -135,7 +102,6 @@ router.post("/checkout", async (req, res) => {
     }
 
     await conn.commit();
-<<<<<<< HEAD
     res.status(201).json({ message: "Checkout completed successfully", transactionId });
   } catch (err) {
     if (conn) {
@@ -147,15 +113,6 @@ router.post("/checkout", async (req, res) => {
     if (conn) {
       conn.release();
     }
-=======
-    res.status(201).json({ message: "Checkout completed successfully" });
-  } catch (err) {
-    await conn.rollback();
-    console.error(err);
-    res.status(500).json({ message: "Checkout failed" });
-  } finally {
-    conn.release();
->>>>>>> cfcf8846cfc95db63deb847b9495687bfb90927e
   }
 });
 
