@@ -6,6 +6,9 @@ import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../layouts/DashboardLayout';
 import AuthLayout from '../layouts/AuthLayout';
 
+// Components
+import ProtectedRoute from '../components/ProtectedRoute';
+
 // Pages
 import Dashboard from '../pages/Dashboard';
 import Login from '../pages/Login';
@@ -34,13 +37,65 @@ const AppRoutes = () => {
           user ? <DashboardLayout /> : <Navigate to="/" replace />
         }
       >
-        <Route index element={<Dashboard />} />
-        <Route path="products" element={<Products />} />
-        <Route path="pos" element={<POS />} />
-        <Route path="reports" element={<Reports />} />
-        <Route path="raw-materials" element={<RawMaterials />} />
-        <Route path="purchases" element={<Purchases />} />
-        <Route path="settings" element={<Settings />} />
+        {/* Available for both admin and cashier */}
+        <Route 
+          index 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="products" 
+          element={
+            <ProtectedRoute>
+              <Products />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="pos" 
+          element={
+            <ProtectedRoute>
+              <POS />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="settings" 
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Admin only routes */}
+        <Route 
+          path="reports" 
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Reports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="raw-materials" 
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <RawMaterials />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="purchases" 
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Purchases />
+            </ProtectedRoute>
+          } 
+        />
       </Route>
 
       {/* 404 route */}

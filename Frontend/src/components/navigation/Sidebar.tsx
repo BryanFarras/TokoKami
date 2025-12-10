@@ -2,6 +2,7 @@ import React from 'react';
 import Logo from '../../assets/design.svg';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { rolePermissions } from '../../utils/permissions';
 import { 
   Coffee, 
   LayoutDashboard, 
@@ -22,9 +23,9 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen, isMobile }) => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
-  const navItems = [
+  const allNavItems = [
     { path: '/dashboard', name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { path: '/dashboard/products', name: 'Products', icon: <Package className="w-5 h-5" /> },
     { path: '/dashboard/pos', name: 'Point of Sale', icon: <ShoppingCart className="w-5 h-5" /> },
@@ -33,6 +34,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen, isMobile }) => {
     { path: '/dashboard/purchases', name: 'Purchases', icon: <ShoppingBag className="w-5 h-5" /> },
     { path: '/dashboard/settings', name: 'Settings', icon: <Settings className="w-5 h-5" /> },
   ];
+
+  // Filter nav items based on user role
+  const userRole = (user?.role || 'cashier') as 'admin' | 'cashier';
+  const allowedPaths = rolePermissions[userRole] || [];
+  const navItems = allNavItems.filter(item => allowedPaths.includes(item.path));
 
   const handleLogout = () => {
     logout();
@@ -78,6 +84,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen, isMobile }) => {
                 <X className="h-6 w-6" />
               </button>
             )}
+          </div>
+
+          {/* User Role Display */}
+          <div className="px-4 py-3 bg-gray-100 dark:bg-gray-700">
+            <p className="text-xs text-gray-600 dark:text-gray-400">Role</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white capitalize">{userRole}</p>
           </div>
 
           {/* Navigation links */}
