@@ -1,21 +1,29 @@
-# Exclude Node.js dependencies
-/TokoKami/Frontend/node_modules/
-/TokoKami/Frontend/package-lock.json
-/TokoKami/Backend/node_modules/
+# --- Dependencies ---
+node_modules/
+.pnp
+.pnp.js
 
-# Exclude build directories (if you have them)
-/TokoKami/Frontend/dist/
-/TokoKami/Frontend/build/
-/TokoKami/Backend/dist/
+# --- Lock files yang TIDAK BOLEH di-ignore (JANGAN masukkan package-lock.json disini) ---
+# yarn.lock (kalau pakai yarn, boleh dicommit boleh tidak tergantung tim, biasanya dicommit)
 
-# Exclude IDE settings (VS Code, etc.)
-.vscode/
-.idea/
+# --- Testing ---
+coverage/
 
-# Exclude system files
+# --- Production / Build ---
+dist/
+build/
+out/
+
+# --- Environment Variables (PENTING: Jangan di-push) ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- IDE & System ---
 .DS_Store
 Thumbs.db
-
-# Exclude files yang sering disalahartikan sebagai bagian dari repo
-# Jika ada file/folder di root C:\Users\Muhammad Hilmi yang terpush, tambahkan di sini (misal: *.exe, folder_pribadi_lain/)
-# Jika root repo terlalu tinggi, ini bisa diabaikan dengan mengkloning ulang, tapi kita coba bersihkan dulu
+.vscode/
+.idea/
+*.log

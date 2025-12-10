@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Tambahkan ini untuk memastikan background body ikut berubah */
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 transition-colors duration-300;
+  }
+  
+  /* Saat dark mode aktif, body jadi gelap */
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
+}
+
