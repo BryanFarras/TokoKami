@@ -1,0 +1,29 @@
+# --- Dependencies ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Lock files yang TIDAK BOLEH di-ignore (JANGAN masukkan package-lock.json disini) ---
+# yarn.lock (kalau pakai yarn, boleh dicommit boleh tidak tergantung tim, biasanya dicommit)
+
+# --- Testing ---
+coverage/
+
+# --- Production / Build ---
+dist/
+build/
+out/
+
+# --- Environment Variables (PENTING: Jangan di-push) ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- IDE & System ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
