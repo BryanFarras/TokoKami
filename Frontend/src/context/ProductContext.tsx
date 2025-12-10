@@ -64,7 +64,11 @@ const mapToApi = (p: Partial<Product>) => ({
   cost_price: p.costPrice,
   stock: p.stock,
   image: p.image,
-  // ingredients handling omitted — backend must support it if required
+  // send ingredients if backend supports it
+  ingredients: p.ingredients?.map(i => ({
+    raw_material_id: i.rawMaterialId,
+    amount: i.amount,
+  })),
 });
 
 export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) => {

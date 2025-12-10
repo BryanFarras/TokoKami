@@ -434,7 +434,7 @@ const RawMaterials = () => {
                             id="unitCost"
                             name="unitCost"
                             min="0"
-                            step="100"
+                            step="10"
                             value={formData.unitCost}
                             onChange={handleFormChange}
                             className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-3 sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"

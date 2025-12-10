@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProducts, Product, ProductIngredient } from '../context/ProductContext';
 import { useInventory, RawMaterial } from '../context/InventoryContext';
 import { 
@@ -148,14 +148,14 @@ const Products = () => {
   const handleIngredientChange = (index: number, field: keyof ProductIngredient, value: string | number) => {
     setFormData(prev => {
       const newIngredients = [...prev.ingredients];
-      newIngredients[index] = { 
-        ...newIngredients[index], 
-        [field]: field === 'amount' ? parseFloat(value as string) || 0 : value 
+      newIngredients[index] = {
+        ...newIngredients[index],
+        [field]:
+          field === 'amount'
+            ? Number(value) || 0
+            : String(value), // ensure rawMaterialId stays string
       };
-      return {
-        ...prev,
-        ingredients: newIngredients
-      };
+      return { ...prev, ingredients: newIngredients };
     });
   };
   
@@ -201,6 +201,16 @@ const Products = () => {
     }
   };
 
+  useEffect(() => {
+    const total = formData.ingredients.reduce((sum, ing) => {
+      const rm = rawMaterials.find(r => String(r.id) === String(ing.rawMaterialId));
+      const unitCost = Number(rm?.unitCost ?? rm?.price ?? 0);
+      return sum + unitCost * Number(ing.amount || 0);
+    }, 0);
+    setFormData(prev => ({ ...prev, costPrice: Number(total.toFixed(2)) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.ingredients, rawMaterials]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -240,10 +250,8 @@ const Products = () => {
                   value={selectedCategory || 'All'}
                   onChange={(e) => setSelectedCategory(e.target.value === 'All' ? null : e.target.value)}
                 >
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
               </div>
@@ -255,8 +263,8 @@ const Products = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th 
-                  scope="col" 
+                <th
+                  scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
                   onClick={() => handleSort('name')}
                 >
@@ -267,8 +275,8 @@ const Products = () => {
                     )}
                   </div>
                 </th>
-                <th 
-                  scope="col" 
+                <th
+                  scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
                   onClick={() => handleSort('category')}
                 >
@@ -279,8 +287,8 @@ const Products = () => {
                     )}
                   </div>
                 </th>
-                <th 
-                  scope="col" 
+                <th
+                  scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
                   onClick={() => handleSort('price')}
                 >
@@ -291,8 +299,8 @@ const Products = () => {
                     )}
                   </div>
                 </th>
-                <th 
-                  scope="col" 
+                <th
+                  scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
                   onClick={() => handleSort('stock')}
                 >
@@ -379,9 +387,7 @@ const Products = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                    No products found matching your search
-                  </td>
+                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">No products found</td>
                 </tr>
               )}
             </tbody>
@@ -420,16 +426,23 @@ const Products = () => {
                         Product Name
                       </label>
                       <input
-                        type="text"
-                        id="name"
                         name="name"
                         value={formData.name}
                         onChange={handleFormChange}
-                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        className="w-full rounded border px-3 py-2 dark:bg-gray-700 dark:border-gray-600"
                         required
                       />
                     </div>
-                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Category</label>
+                      <input
+                        name="category"
+                        value={formData.category}
+                        onChange={handleFormChange}
+                        className="w-full rounded border px-3 py-2 dark:bg-gray-700 dark:border-gray-600"
+                        required
+                      />
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -475,116 +488,78 @@ const Products = () => {
                         </div>
                       </div>
                     </div>
-                    
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Category
-                        </label>
-                        <input
-                          type="text"
-                          id="category"
-                          name="category"
-                          value={formData.category}
-                          onChange={handleFormChange}
-                          className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                          required
-                        />
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="stock" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Stock
-                        </label>
+                        <label className="block text-sm font-medium mb-1">Stock</label>
                         <input
                           type="number"
-                          id="stock"
+                          step="1"
                           name="stock"
-                          min="0"
                           value={formData.stock}
                           onChange={handleFormChange}
-                          className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                          required
+                          className="w-full rounded border px-3 py-2 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Image URL</label>
+                        <input
+                          name="image"
+                          value={formData.image}
+                          onChange={handleFormChange}
+                          className="w-full rounded border px-3 py-2 dark:bg-gray-700 dark:border-gray-600"
                         />
                       </div>
                     </div>
-                    
+
                     <div>
-                      <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Image URL (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        id="image"
-                        name="image"
-                        value={formData.image}
-                        onChange={handleFormChange}
-                        className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      />
-                    </div>
-                    
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Ingredients
-                        </label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium">Ingredients (from Raw Materials)</label>
                         <button
                           type="button"
                           onClick={handleAddIngredient}
-                          className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-400 dark:bg-blue-900/30 dark:hover:bg-blue-900/50"
+                          className="px-2 py-1 text-sm rounded bg-blue-600 text-white"
                         >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add
+                          Add Ingredient
                         </button>
                       </div>
-                      
-                      <div className="border border-gray-200 dark:border-gray-700 rounded-md p-3 space-y-3 max-h-60 overflow-y-auto">
-                        {formData.ingredients.length > 0 ? (
-                          formData.ingredients.map((ingredient, index) => (
-                            <div key={index} className="flex items-center space-x-3">
-                              <div className="flex-1">
-                                <select
-                                  value={ingredient.rawMaterialId}
-                                  onChange={(e) => handleIngredientChange(index, 'rawMaterialId', e.target.value)}
-                                  className="block w-full py-1.5 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                >
-                                  {rawMaterials.map((material) => (
-                                    <option key={material.id} value={material.id}>
-                                      {material.name} ({material.unit})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="w-20">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={ingredient.amount}
-                                  onChange={(e) => handleIngredientChange(index, 'amount', e.target.value)}
-                                  className="block w-full py-1.5 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                  placeholder="Amount"
-                                />
-                              </div>
+                      <div className="space-y-2">
+                        {formData.ingredients.map((ing, idx) => {
+                          const rm = rawMaterials.find(r => r.id === ing.rawMaterialId);
+                          return (
+                            <div key={idx} className="flex gap-2 items-center">
+                              <select
+                                className="min-w-[12rem] rounded border px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+                                value={String(ing.rawMaterialId)}
+                                onChange={(e) => handleIngredientChange(idx, 'rawMaterialId', e.target.value)}
+                              >
+                                {rawMaterials.map(rm => (
+                                  <option key={rm.id} value={String(rm.id)}>
+                                    {rm.name} {rm.unit ? `(${rm.unit})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="number"
+                                step="1"
+                                className="w-32 rounded border px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+                                value={ing.amount}
+                                onChange={(e) => handleIngredientChange(idx, 'amount', e.target.value)}
+                                placeholder="Amount"
+                              />
                               <button
                                 type="button"
-                                onClick={() => handleRemoveIngredient(index)}
-                                className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                onClick={() => handleRemoveIngredient(idx)}
+                                className="px-2 py-1 text-sm rounded bg-red-600 text-white"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                Remove
                               </button>
                             </div>
-                          ))
-                        ) : (
-                          <div className="flex flex-col items-center justify-center py-3 text-gray-500 dark:text-gray-400">
-                            <PackageOpen className="h-6 w-6 mb-1 opacity-40" />
-                            <p className="text-sm">No ingredients added yet</p>
-                          </div>
+                          );
+                        })}
+                        {formData.ingredients.length === 0 && (
+                          <div className="text-sm text-gray-500">No ingredients. Click "Add Ingredient".</div>
                         )}
                       </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Adding ingredients will help track raw material usage
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -593,24 +568,14 @@ const Products = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="inline-flex justify-center items-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 ml-3"
+                    className="ml-2 px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
                   >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        {formMode === 'add' ? 'Add Product' : 'Save Changes'}
-                      </>
-                    )}
+                    {isSubmitting ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+                    className="px-4 py-2 rounded border dark:border-gray-600"
                   >
                     Cancel
                   </button>
