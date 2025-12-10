@@ -6,28 +6,43 @@ import { api } from '../api';
 import { Search, ShoppingCart, Trash2, Plus, Minus, X, CreditCard, DollarSign, Loader2, Receipt } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatCurrency } from "../utils/currency";
+import dayjs from 'dayjs'; 
+import 'dayjs/locale/id'; 
+
+// --- UTILITY: Format Tanggal Aman ---
+const formatReceiptDate = (dateInput: string | undefined): string => {
+  if (!dateInput) return dayjs().format('D MMMM YYYY, HH:mm');
+  const date = dayjs(dateInput);
+  if (!date.isValid()) return dayjs().format('D MMMM YYYY, HH:mm');
+  return date.locale('id').format('D MMMM YYYY, HH:mm');
+};
 
 const POS = () => {
   const { products, loading: productsLoading } = useProducts();
+  // Safe access to TransactionContext
   const txCtx = (() => { try { return useTransactions(); } catch { return null; } })();
   const { user } = useAuth();
 
-  // Local cart state (keeps UI identical and prevents crashes if TransactionContext shape differs)
+  // Local cart state
   const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
+  // Modal & Form States
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'other'>('cash');
   const [customerName, setCustomerName] = useState('');
   const [notes, setNotes] = useState('');
   const [cashAmount, setCashAmount] = useState('');
+  
   const [isProcessing, setIsProcessing] = useState(false);
-  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState<any>(null);
 
-  // helpers
+  // --- HELPERS ---
   const categories = useMemo(() => ['All', ...Array.from(new Set(products.map(product => product.category)))], [products]);
 
   const filteredProducts = products.filter(product => {
@@ -45,6 +60,7 @@ const POS = () => {
   };
 
   const removeFromCart = (productId: string) => setCart(prev => prev.filter(i => i.product.id !== productId));
+  
   const updateCartItemQuantity = (productId: string, quantity: number) => {
     setCart(prev => prev.map(i => i.product.id === productId ? { ...i, quantity: Math.max(0, quantity) } : i).filter(i => i.quantity > 0));
   };
@@ -56,11 +72,20 @@ const POS = () => {
     toast.success(`${product.name} added to cart`);
   };
 
+  const calculateChange = () => {
+    if (!cashAmount) return 0;
+    const cashValue = parseFloat(cashAmount) || 0;
+    const totalWithTaxAndDiscount = cartSubtotal + tax - discount;
+    return cashValue > totalWithTaxAndDiscount ? cashValue - totalWithTaxAndDiscount : 0;
+  };
+
+  // --- CHECKOUT LOGIC ---
   const handleCheckout = async () => {
     if (cart.length === 0) { toast.error('Cart is empty'); return; }
     setIsProcessing(true);
+    
     try {
-      // build payload the backend expects
+      // 1. Build Payload
       const payload = {
         type: 'sale',
         items: cart.map(i => ({
@@ -80,31 +105,48 @@ const POS = () => {
         notes: notes || undefined,
       };
 
-      if (txCtx && typeof txCtx.addTransaction === 'function') {
-        const transaction = await txCtx.addTransaction(payload as any);
-        setCurrentTransaction(transaction ?? payload);
-      } else {
-        const resp = await api<any>('/transactions/checkout', { method: 'POST', body: payload });
-        setCurrentTransaction(resp ?? payload);
+      // 2. LOGIKA GENERATE NOMOR RESI (Supaya tidak "PENDING")
+      // Kita hitung manual: Jumlah transaksi sekarang + 1
+      let predictedId = '1'; 
+      if (txCtx && txCtx.transactions && txCtx.transactions.length > 0) {
+          // Cari ID maksimum yang ada saat ini untuk menghindari duplikat
+          const maxId = Math.max(...txCtx.transactions.map((t: any) => Number(t.id) || 0));
+          predictedId = String(maxId + 1);
       }
 
+      let transactionResult: any;
+
+      // 3. Send to Backend
+      if (txCtx && typeof txCtx.addTransaction === 'function') {
+        transactionResult = await txCtx.addTransaction(payload as any);
+      } else {
+        transactionResult = await api<any>('/transactions/checkout', { method: 'POST', body: payload });
+      }
+
+      // 4. Create Safe Transaction Object
+      const safeTransaction = {
+          ...payload,
+          ...transactionResult,
+          // Prioritas ID: 1. Dari Backend (jika ada), 2. Prediksi Frontend (jika backend gagal kirim)
+          id: transactionResult?.id || predictedId, 
+          date: transactionResult?.date || new Date().toISOString()
+      };
+
+      setCurrentTransaction(safeTransaction);
+
+      // 5. Reset Form & Open Receipt
       setCheckoutModalOpen(false);
       setReceiptModalOpen(true);
       setCart([]);
       setDiscount(0); setTax(0); setPaymentMethod('cash'); setCustomerName(''); setNotes(''); setCashAmount('');
-      toast.success('Transaction completed successfully');
+      
+      toast.success(`Transaction #${safeTransaction.id} completed successfully`);
     } catch (error: any) {
+      console.error("Checkout Error:", error);
       toast.error(error?.message || 'Failed to process transaction');
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const calculateChange = () => {
-    if (!cashAmount) return 0;
-    const cashValue = parseFloat(cashAmount) || 0;
-    const totalWithTaxAndDiscount = cartSubtotal + tax - discount;
-    return cashValue > totalWithTaxAndDiscount ? cashValue - totalWithTaxAndDiscount : 0;
   };
 
   const printReceipt = () => {
@@ -441,7 +483,7 @@ const POS = () => {
                   <div className="flex justify-between text-lg font-bold mb-4">
                     <span className="text-gray-900 dark:text-white">Total</span>
                     <span className="text-blue-600 dark:text-blue-400">
-                      {(cartSubtotal + tax - discount).toFixed(2)}
+                      {formatCurrency(cartSubtotal + tax - discount)}
                     </span>
                   </div>
                   
@@ -485,9 +527,11 @@ const POS = () => {
                 <div className="text-center mb-6">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">Brew Manager</h2>
                   <p className="text-gray-500 dark:text-gray-400">
-                    {new Date(currentTransaction.date).toLocaleString()}
+                    {formatReceiptDate(currentTransaction.date)}
                   </p>
-                  <p className="text-gray-500 dark:text-gray-400">Receipt #{currentTransaction.id}</p>
+                  
+                  {/* --- PERUBAHAN UTAMA: MENAMPILKAN ID HASIL PREDIKSI ATAU BACKEND --- */}
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">Receipt #{currentTransaction.id}</p>
                 </div>
                 
                 <div className="border-t border-b border-gray-200 dark:border-gray-700 py-4">

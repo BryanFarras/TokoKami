@@ -1,11 +1,23 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api } from "../api";
 
-interface User { id: string; name?: string; email?: string; [key: string]: any; }
+// 1. Update Interface User: Pastikan ada properti 'role'
+// Role bisa berupa 'admin', 'cashier', atau string lain
+interface User {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: 'admin' | 'cashier' | string; // TAMBAHAN: Definisi role
+  [key: string]: any;
+}
+
+// 2. Update Context Type: Tambahkan helper isAdmin dan isCashier
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
+  isAdmin: boolean;   // TAMBAHAN: Cek praktis apakah user adalah admin
+  isCashier: boolean; // TAMBAHAN: Cek praktis apakah user adalah cashier
   login: (credentials: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   fetchCurrentUser: () => Promise<void>;
@@ -32,6 +44,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 3. Logika Penentuan Role
+  // Ini akan otomatis bernilai true/false tergantung data user
+  const isAdmin = user?.role === 'admin';
+  const isCashier = user?.role === 'cashier';
 
   const fetchCurrentUser = async () => {
     try {
@@ -60,6 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem("token");
         setToken(null);
       }
+      // Pastikan backend mengirim object user yang berisi field 'role'
       if (data?.user) setUser(data.user);
       else setUser(data || null);
       setError(null);
@@ -93,7 +111,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, logout, fetchCurrentUser }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      error,
+      isAdmin,    // Masukkan ke value provider
+      isCashier,  // Masukkan ke value provider
+      login,
+      logout,
+      fetchCurrentUser
+    }}>
       {children}
     </AuthContext.Provider>
   );
