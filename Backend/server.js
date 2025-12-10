@@ -17,8 +17,13 @@ app.get("/test-db", async (req, res) => {
     await db.query("SELECT 1");
     res.json({ message: "Database connected!" });
   } catch (err) {
+<<<<<<< HEAD
     console.error("Database test failed:", err.message);
     res.status(500).json({ message: "DB connection failed", error: err.message });
+=======
+    console.error(err);
+    res.status(500).json({ message: "DB connection failed" });
+>>>>>>> cfcf8846cfc95db63deb847b9495687bfb90927e
   }
 });
 
@@ -29,6 +34,7 @@ app.use("/purchases", purchasesRoutes);
 app.use("/transactions", transactionsRoutes);
 app.use("/auth", authRoutes);
 
+<<<<<<< HEAD
 // Global error handler
 app.use((err, req, res, next) => {
   console.error("Error:", err);
@@ -50,3 +56,8 @@ db.query("SELECT 1")
     console.error("Please check your database credentials and network connection.");
     process.exit(1);
   });
+=======
+app.listen(process.env.PORT || 4000, () =>
+    console.log(`Server running on port ${process.env.PORT || 4000}`)
+);
+>>>>>>> cfcf8846cfc95db63deb847b9495687bfb90927e
