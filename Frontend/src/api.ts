@@ -7,7 +7,9 @@ function normalizeToken(raw: string | null) {
 }
 
 export async function api<T = any>(path: string, options: RequestInit = {}): Promise<T> {
-    const token = typeof window !== "undefined" ? normalizeToken(localStorage.getItem("token")) : null;
+    const token = typeof window !== "undefined"
+        ? (normalizeToken(localStorage.getItem("token")) || normalizeToken(sessionStorage.getItem("token")))
+        : null;
 
     const headers = { "Content-Type": "application/json", ...(options.headers || {}) } as Record<string,string>;
 

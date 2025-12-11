@@ -17,7 +17,7 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login({ email, password });
+      await login({ email, password }, rememberMe);
       navigate('/dashboard');
     } catch (err) {
       console.error(err);
@@ -31,6 +31,13 @@ const Login = () => {
     const message = encodeURIComponent("Halo, saya tertarik untuk menggunakan sistem POS Tokokami untuk bisnis saya.");
     window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
   };
+
+  const handleForgotPassword = () => {
+    // Logika untuk lupa password (misalnya, navigasi ke halaman reset password)
+    const phoneNumber = "6281386844039"; 
+    const message = encodeURIComponent("Halo, saya lupa password untuk akun Tokokami saya. Bisakah Anda membantu saya?");
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex bg-white dark:bg-[#0B0F19] font-sans">
@@ -186,7 +193,7 @@ const Login = () => {
                     Remember me
                   </span>
                </label>
-               <a href="#" className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline transition-all">
+               <a href="#" onClick={handleForgotPassword} className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline transition-all">
                  Forgot password?
                </a>
             </div>

@@ -40,7 +40,15 @@ function normalizeToken(raw?: string | null) {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => {
-    try { return normalizeToken(localStorage.getItem("token")); } catch { return null; }
+    try {
+      // Try localStorage (remembered), then sessionStorage (non-remembered)
+      const ls = normalizeToken(localStorage.getItem("token"));
+      if (ls) return ls;
+      const ss = normalizeToken(sessionStorage.getItem("token"));
+      return ss;
+    } catch {
+      return null;
+    }
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,23 +66,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(null);
     } catch (err) {
       setUser(null);
-      setError("Failed to fetch user");
+      setError("Your session has expired. Sign in to continue.");
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const login = async (credentials: { email: string; password: string }) => {
+  const login = async (credentials: { email: string; password: string }, rememberMe: boolean = true) => {
     try {
       setLoading(true);
       const data = await api<any>("/auth/login", { method: "POST", body: credentials });
       const receivedToken = normalizeToken(data?.token ?? null);
       if (receivedToken) {
         setToken(receivedToken);
-        localStorage.setItem("token", receivedToken);
+        // Store based on rememberMe
+        if (rememberMe) {
+          localStorage.setItem("token", receivedToken);
+          sessionStorage.removeItem("token"); // ensure single source
+        } else {
+          sessionStorage.setItem("token", receivedToken);
+          localStorage.removeItem("token");
+        }
       } else {
         localStorage.removeItem("token");
+        sessionStorage.removeItem("token");
         setToken(null);
       }
       // Pastikan backend mengirim object user yang berisi field 'role'
@@ -97,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setToken(null);
       localStorage.removeItem("token");
+      sessionStorage.removeItem("token");
       setError(null);
     } catch (err) {
       console.error(err);
