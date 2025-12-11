@@ -100,7 +100,7 @@ const Login = () => {
            </button>
         </div>
 
-        <div className="w-full max-w-[420px] mx-auto space-y-10">
+        <div className="w-full max-w-[420px] mx-auto space-y-5">
           
           {/* Mobile Logo */}
           <div className="lg:hidden mb-6">
@@ -122,13 +122,10 @@ const Login = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-7">
+          <form onSubmit={handleSubmit} className="space-y-6">
             
             {/* EMAIL */}
             <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">
-                Email
-              </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors duration-300" />
@@ -142,16 +139,14 @@ const Login = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-transparent rounded-xl text-gray-900 dark:text-white placeholder-gray-400 font-medium focus:bg-white dark:focus:bg-gray-900 focus:border-blue-600 focus:ring-0 transition-all duration-300 outline-none"
                   // Placeholder disesuaikan permintaan
-                  placeholder="admin@cicoo.com"
+                  placeholder="Email Address"
                 />
               </div>
             </div>
 
             {/* PASSWORD */}
             <div className="space-y-2">
-              <label htmlFor="password" class Name="block text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">
-                Password
-              </label>
+              
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors duration-300" />
@@ -163,8 +158,7 @@ const Login = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-transparent rounded-xl text-gray-900 dark:text-white placeholder-gray-400 font-medium focus:bg-white dark:focus:bg-gray-900 focus:border-blue-600 focus:ring-0 transition-all duration-300 outline-none font-mono text-lg"
-                  placeholder="••••••••"
+                  className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-transparent rounded-xl text-gray-900 dark:text-white placeholder-gray-400 font-medium focus:bg-white dark:focus:bg-gray-900 focus:border-blue-600 focus:ring-0 transition-all duration-300 outline-none"                  placeholder="Password"
                 />
                 <button
                   type="button"

@@ -17,7 +17,6 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
         headers.Authorization = `Bearer ${token}`;
     }
 
-    // stringify JS objects (but allow FormData/URLSearchParams/Blob)
     let body = (options as any).body;
     const isForm = typeof FormData !== "undefined" && body instanceof FormData;
     const isUrlSearch = typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams;
@@ -32,12 +31,23 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
         body,
     });
 
+    const ct = res.headers.get("content-type") || "";
+
     if (!res.ok) {
-        const text = await res.text().catch(()=>res.statusText);
-        throw new Error(text || res.statusText);
+        // prefer JSON error message; otherwise avoid dumping HTML into UI
+        let msg = res.statusText;
+        try {
+            if (ct.includes("application/json")) {
+                const j = await res.json();
+                msg = j?.message || msg;
+            } else {
+                const txt = await res.text();
+                msg = txt && !txt.trim().startsWith("<") ? txt : `${res.status} ${res.statusText}`;
+            }
+        } catch {}
+        throw new Error(msg);
     }
 
-    const ct = res.headers.get("content-type") || "";
     if (!ct.includes("application/json")) return (null as unknown) as T;
     return res.json();
 }
