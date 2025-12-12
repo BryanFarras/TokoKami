@@ -52,7 +52,13 @@ const mapFromApi = (p: any): Product => ({
   stock: Number(p.stock || 0),
   category: p.category ?? "",
   image: p.image ?? undefined,
-  ingredients: p.ingredients ?? [],
+  // FIX: normalize ingredient shape (snake_case -> camelCase)
+  ingredients: Array.isArray(p.ingredients)
+    ? p.ingredients.map((i: any) => ({
+        rawMaterialId: String(i.raw_material_id ?? i.rawMaterialId ?? i.rawMaterial ?? i.id ?? ""),
+        amount: Number(i.amount ?? i.qty ?? 0),
+      }))
+    : [],
   createdAt: p.created_at ?? p.createdAt ?? new Date().toISOString(),
   updatedAt: p.updated_at ?? p.updatedAt ?? new Date().toISOString(),
 });

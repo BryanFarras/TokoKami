@@ -535,7 +535,10 @@ const Products = () => {
                         formData.ingredients.map((ing, idx) => (
                           <div key={idx} className="flex gap-2 items-center bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm border border-gray-100 dark:border-gray-600">
                             <select
-                              className="flex-1 text-sm border-none bg-transparent focus:ring-0 dark:text-white font-medium"
+                              className="ingredient-select flex-1 text-sm font-medium appearance-none rounded-md px-2 py-1
+             bg-white text-gray-900 border border-gray-300
+             dark:bg-gray-700 dark:text-white dark:border-gray-600
+             focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                               value={String(ing.rawMaterialId)}
                               onChange={(e) => handleIngredientChange(idx, 'rawMaterialId', e.target.value)}
                             >

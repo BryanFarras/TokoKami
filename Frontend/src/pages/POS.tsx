@@ -42,6 +42,9 @@ const POS = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState<any>(null);
 
+  // NEW: mobile cart toggle
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+
   // --- HELPERS ---
   const categories = useMemo(() => ['All', ...Array.from(new Set(products.map(product => product.category)))], [products]);
 
@@ -66,6 +69,7 @@ const POS = () => {
   };
 
   const cartSubtotal = cart.reduce((s, it) => s + (it.product.price * it.quantity), 0);
+  const cartItemCount = useMemo(() => cart.reduce((t, i) => t + i.quantity, 0), [cart]);
 
   const handleAddToCart = (product: Product) => {
     addToCart(product, 1);
@@ -136,6 +140,7 @@ const POS = () => {
 
       // 5. Reset Form & Open Receipt
       setCheckoutModalOpen(false);
+      setMobileCartOpen(false); // ensure mobile cart is closed after checkout
       setReceiptModalOpen(true);
       setCart([]);
       setDiscount(0); setTax(0); setPaymentMethod('cash'); setCustomerName(''); setNotes(''); setCashAmount('');
@@ -206,23 +211,52 @@ const POS = () => {
               filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow dark:bg-gray-800 dark:border-gray-700"
+                  // Make card a flex column; remove overflow-hidden to avoid clipping content
+                  className="bg-white border border-gray-200 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow dark:bg-gray-800 dark:border-gray-700 flex flex-col"
                   onClick={() => handleAddToCart(product)}
                 >
+                  {/* Hide images below md */}
                   {product.image && (
-                    <div className="h-32 overflow-hidden">
+                    <div className="h-32 hidden md:block overflow-hidden rounded-t-lg">
                       <img
                         src={product.image}
                         alt={product.name}
                         className="w-full h-full object-cover"
+                        loading="lazy"
                       />
                     </div>
                   )}
-                  <div className="p-4">
-                    <h3 className="font-medium text-gray-900 dark:text-white">{product.name}</h3>
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(product.price)}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Stock: {product.stock}</p>
+
+                  <div className="p-4 flex flex-col">
+                    {/* Reserve space for long names so price row stays visible */}
+                    <h3
+                      className="font-medium text-gray-900 dark:text-white line-clamp-2"
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {product.name}
+                    </h3>
+
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                      {product.category}
+                    </p>
+
+                    <div className="mt-2">
+                      {/* Allow stock to wrap under price on small screens if space is tight */}
+                      <div className="flex flex-wrap items-center justify-between gap-x-2">
+                        {/* Keep price on one line; use smaller font on small screens */}
+                        <p className="text-base md:text-lg font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap flex-1 min-w-0">
+                          {formatCurrency(product.price)}
+                        </p>
+                        {/* Make stock smaller; let it wrap on small screens */}
+                        <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 shrink-0">
+                          Stock: {product.stock}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -235,8 +269,8 @@ const POS = () => {
           </div>
         </div>
         
-        {/* Cart */}
-        <div className="w-full md:w-1/3 bg-white dark:bg-gray-800 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 flex flex-col">
+        {/* Desktop Cart (hidden on small screens) */}
+        <div className="hidden md:flex md:w-1/3 bg-white dark:bg-gray-800 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 flex-col">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div className="flex items-center">
               <ShoppingCart className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
@@ -251,7 +285,7 @@ const POS = () => {
               </button>
             )}
           </div>
-          
+
           <div className="flex-1 overflow-y-auto p-4">
             {cart.length > 0 ? (
               <div className="space-y-4">
@@ -260,7 +294,7 @@ const POS = () => {
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900 dark:text-white">{item.product.name}</h4>
                       <p className="text-sm text-gray-500 dark:text-gray-400">{formatCurrency(item.product.price)} each</p>
-                      
+
                       <div className="mt-2 flex items-center">
                         <button
                           onClick={() => updateCartItemQuantity(item.product.id, item.quantity - 1)}
@@ -275,7 +309,7 @@ const POS = () => {
                         >
                           <Plus className="h-4 w-4" />
                         </button>
-                        
+
                         <div className="ml-auto flex items-center">
                           <span className="font-medium text-gray-900 dark:text-white">
                             {formatCurrency(item.product.price * item.quantity)}
@@ -308,13 +342,112 @@ const POS = () => {
             </div>
             <div className="text-right">
               <span className="text-gray-500 dark:text-gray-400 text-xs">
-                {cart.reduce((total, item) => total + item.quantity, 0)} items
+                {cartItemCount} items
               </span>
             </div>
           </div>
         </div>
       </div>
       
+      {/* Mobile cart floating action button */}
+      {cart.length > 0 && (
+        <button
+          onClick={() => setMobileCartOpen(true)}
+          className="md:hidden fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg bg-blue-600 text-white"
+          aria-label="Open cart"
+        >
+          <ShoppingCart className="h-5 w-5" />
+          <span>{cartItemCount}</span>
+          <span className="font-semibold">{formatCurrency(cartSubtotal)}</span>
+        </button>
+      )}
+
+      {/* Mobile Cart Bottom Sheet */}
+      {mobileCartOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileCartOpen(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-2xl shadow-xl max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <h2 className="font-medium">Current Order</h2>
+                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{cartItemCount} items</span>
+              </div>
+              <button
+                onClick={() => setMobileCartOpen(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                aria-label="Close cart"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-4 max-h-[60vh]">
+              {cart.length > 0 ? (
+                <div className="space-y-4">
+                  {cart.map((item) => (
+                    <div key={item.product.id} className="flex border-b border-gray-200 dark:border-gray-700 pb-4">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 dark:text-white">{item.product.name}</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{formatCurrency(item.product.price)} each</p>
+                        <div className="mt-2 flex items-center">
+                          <button
+                            onClick={() => updateCartItemQuantity(item.product.id, item.quantity - 1)}
+                            className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <span className="mx-3 text-gray-700 dark:text-gray-300">{item.quantity}</span>
+                          <button
+                            onClick={() => updateCartItemQuantity(item.product.id, item.quantity + 1)}
+                            className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                          <div className="ml-auto flex items-center">
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {formatCurrency(item.product.price * item.quantity)}
+                            </span>
+                            <button
+                              onClick={() => removeFromCart(item.product.id)}
+                              className="ml-3 p-1 rounded-full text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-40 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400">
+                  <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
+                  <p>Your cart is empty</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-gray-600 dark:text-gray-400 text-sm">Subtotal</span>
+                <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(cartSubtotal)}</span>
+              </div>
+              <button
+                onClick={() => {
+                  setMobileCartOpen(false);
+                  setCheckoutModalOpen(true);
+                }}
+                disabled={cart.length === 0}
+                className="w-full py-2 px-4 rounded-md text-white bg-blue-600 disabled:opacity-50"
+              >
+                Checkout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Checkout Modal */}
       {checkoutModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
