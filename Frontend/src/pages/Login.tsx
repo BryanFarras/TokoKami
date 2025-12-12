@@ -77,9 +77,6 @@ const Login = () => {
 
           <div className="flex items-center gap-6 text-sm text-gray-400 font-medium">
             <span>© 2025 Tokokami Inc.</span>
-            <span className="h-1 w-1 bg-gray-500 rounded-full"></span>
-            <span className="hover:text-white transition-colors cursor-pointer">Privacy</span>
-            <span className="hover:text-white transition-colors cursor-pointer">Terms</span>
           </div>
         </div>
       </div>
