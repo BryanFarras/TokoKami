@@ -104,8 +104,9 @@ const RawMaterials = () => {
       try {
         await deleteRawMaterial(material.id);
         toast.success(`${material.name} deleted successfully`);
-      } catch (error) {
-        toast.error('Failed to delete raw material');
+      } catch (error: any) {
+        const msg = error?.message || error?.response?.data?.message || 'Failed to delete raw material';
+        toast.error(msg);
       }
     }
   };

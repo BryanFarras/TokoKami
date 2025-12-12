@@ -46,9 +46,24 @@ router.put("/:id", async (req, res) => {
 // Delete
 router.delete("/:id", async (req, res) => {
   try {
-    await db.query("DELETE FROM raw_materials WHERE id=?", [req.params.id]);
+    const [result] = await db.query("DELETE FROM raw_materials WHERE id=?", [req.params.id]);
+
+    // MySQL returns affectedRows; if 0, id doesn't exist
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Raw material not found" });
+    }
+
     res.json({ message: "Raw material deleted successfully" });
   } catch (err) {
+    console.error("Delete raw_materials error:", err);
+
+    // MySQL FK constraint error code
+    if (err && (err.code === "ER_ROW_IS_REFERENCED" || err.errno === 1451)) {
+      return res.status(409).json({
+        message: "Cannot delete: material is referenced by other records (e.g., purchases).",
+      });
+    }
+
     res.status(500).json({ message: "Error deleting raw material" });
   }
 });
