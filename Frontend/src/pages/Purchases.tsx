@@ -348,9 +348,6 @@ const Purchases = () => {
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
                             {new Date(purchase.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(purchase.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
                         </div>
                       </div>
                     </td>
